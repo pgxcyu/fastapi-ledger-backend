@@ -1,0 +1,32 @@
+# FastAPI 核心
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# ORM & 数据库
+SQLAlchemy==2.0.36
+redis==5.0.1
+alembic==1.13.2
+
+# 安全 / JWT / 密码
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0
+fastapi-limiter==0.1.6
+
+# 其它
+celery==5.5.0
+sentry-sdk==2.1.0
+APScheduler==3.10.4
+tzdata==2025.2
+tzlocal==5.2
+python-multipart==0.0.20
+
+# Pydantic (FastAPI 用于数据校验)
+pydantic==2.9.1
+pydantic_settings==2.4.0
+
+# 可选：异步 SQLite 驱动（如果用异步）
+aiosqlite==0.20.0
+
+# 可选：环境变量配置
+python-dotenv==1.0.1
