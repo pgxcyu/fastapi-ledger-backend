@@ -30,7 +30,7 @@ from app.core.logging import (
 from app.db.init_db import init_db
 from app.db.redis_session import close_redis, init_redis
 from app.db.session import get_db
-from app.routers import auth, basic, transactions
+from app.routers import auth, basic, transactions, videoserver
 from app.schemas.response import R
 from app.tasks.cleanup import cleanup_files
 
@@ -85,7 +85,7 @@ async def startup_event():
         name="清理孤立文件",
         replace_existing=True,
     )
-    scheduler.start()
+    # scheduler.start()
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -127,3 +127,4 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(transactions.router, prefix="/transactions", tags=["transactions"])
 app.include_router(basic.router, prefix="/basic", tags=["basic"])
+app.include_router(videoserver.router, prefix="/videoserver", tags=["videoserver"])

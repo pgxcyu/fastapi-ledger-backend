@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
@@ -7,15 +7,21 @@ from pydantic.config import ConfigDict
 from app.domains.enums import TransactionType
 from app.schemas.basic import PageParams
 
+class FileInfo(BaseModel):
+    filepath: str
+    fileid: Optional[str] = None
+    photo_id: Optional[str] = None
+
 
 class TransactionCreate(BaseModel):
     amount: float = Field(default=0, gt=0, description="交易金额必须大于0")
     type: TransactionType = Field(default=TransactionType.INCOME, description="交易类型必须是枚举值")
     remark: Optional[str] = Field(default="", max_length=255, description="交易备注最大长度为255")
-    filelist: Optional[list[str]] = Field(default_factory=[], description="交易文件列表")
+    filelist: Optional[List[FileInfo]] = Field(default_factory=[], description="交易文件列表")
     # 以下为修改用字段
     transaction_id: Optional[str] = Field(None, description="交易ID，全局唯一")
     delFileids: Optional[str] = Field(None, description="要删除的文件ID拼接，多个ID用英文逗号分隔")
+
 
 class TransactionResponse(BaseModel):
     id: int
@@ -27,9 +33,9 @@ class TransactionResponse(BaseModel):
     amount: float
     type: TransactionType
     remark: Optional[str] = None
-    filelist: Optional[list[str]] = None
+    filelist: Optional[List[FileInfo]] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 

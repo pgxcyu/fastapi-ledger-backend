@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # 数据库配置
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    SQLALCHEMY_DATABASE_URL: str = os.getenv("SQLALCHEMY_DATABASE_URL", "sqlite:///./app.db")
+    SQLALCHEMY_DATABASE_URL: str = os.getenv("SQLALCHEMY_DATABASE_URL", "postgresql+psycopg://postgres:152183312@127.0.0.1:5432/fastapi-ledger")
 
     SESSION_TTL_SECONDS: int = int(os.getenv("SESSION_TTL_SECONDS", "2592000"))  # 30 天
 
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     CLEANUP_CRON: str = os.getenv("CLEANUP_CRON", "30 3 * * *")       # 每天 03:30
 
     # 签名配置
-    SIGNING_KEYS: dict = os.getenv("SIGNING_KEYS", {"app_ledger_v1":"zowiesoft"})
+    SIGNING_KEYS: dict = eval(os.getenv("SIGNING_KEYS", "{\"app_ledger_v1\":\"zowiesoft\"}"))
 
 # 创建全局 settings 实例
 settings = Settings()

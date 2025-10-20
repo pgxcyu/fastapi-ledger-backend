@@ -28,5 +28,8 @@ pydantic_settings==2.4.0
 # 可选：异步 SQLite 驱动（如果用异步）
 aiosqlite==0.20.0
 
+# 视频处理库
+opencv-python==4.10.0.84
+
 # 可选：环境变量配置
 python-dotenv==1.0.1

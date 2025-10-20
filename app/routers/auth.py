@@ -72,7 +72,12 @@ async def login(request: Request, payload: loginModel, db: Session = Depends(get
         "user_agent": request.headers.get("User-Agent", ""),
         "login_time": datetime.now(timezone.utc).isoformat()
     }
-    logger = Logger(userid=user.userid, action="login", info=json.dumps(log_info, ensure_ascii=False))
+    # 使用TimestampMixin的默认服务器时间
+    logger = Logger(
+        userid=user.userid, 
+        action="login", 
+        info=json.dumps(log_info, ensure_ascii=False)
+    )
     db.add(logger); db.commit()
     
     # 同时记录到应用日志

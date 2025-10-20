@@ -9,19 +9,15 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.domains.enums import TransactionType, UserStatus, FileStatus
 
-def utcnow():
-    # 产生“带时区”的 UTC datetime
-    return datetime.now(timezone.utc)
-
 class Base(DeclarativeBase):
     pass
 
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: utcnow(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: utcnow(), onupdate=lambda: utcnow(), nullable=False
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
     )
 
 class User(Base, TimestampMixin):
@@ -37,7 +33,7 @@ class Logger(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     userid: Mapped[str] = mapped_column(String(32), index=True)
     action: Mapped[str] = mapped_column(String(255))
-    info: Mapped[str] = mapped_column(String(255))
+    info: Mapped[str] = mapped_column(String(1000))  # 增加长度限制以存储更多的JSON数据
 
 class Transaction(Base, TimestampMixin):
     __tablename__ = "transactions"
@@ -55,6 +51,8 @@ class Fileassets(Base, TimestampMixin):
     fileid: Mapped[str] = mapped_column(String(32), unique=True, index=True, default=lambda: uuid4().hex)
     filepath: Mapped[str] = mapped_column(String(255))
     type: Mapped[str] = mapped_column(String(20))
+    category: Mapped[str] = mapped_column(String(20), nullable=True)
     business_id: Mapped[str] = mapped_column(String(32), index=True)
     userid: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[FileStatus] = mapped_column(SqlEnum(FileStatus), default=FileStatus.ACTIVE, nullable=False)
+    update_userid: Mapped[str] = mapped_column(String(32), nullable=True)

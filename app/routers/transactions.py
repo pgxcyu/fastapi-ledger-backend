@@ -33,6 +33,7 @@ async def create_transaction(
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db),
     idem = Depends(ensure_idempotency),
+    redis_client = Depends(get_redis_client),
 ):
     _, replay = idem
     if replay:
@@ -55,10 +56,13 @@ async def create_transaction(
             existing.update_userid = current_user.userid
             existing.update_at = datetime.now(timezone.utc)
             db_transaction = existing
+
+            await redis_client.delete(f"transaction:{transaction.transaction_id}")
         else:
             db_transaction = Transaction(
                 create_userid=current_user.userid, 
-                **transaction.model_dump(exclude=["filelist"])
+                created_at=datetime.now(timezone.utc),
+                **transaction.model_dump(exclude={"filelist", "delFileids"})
             )
             db.add(db_transaction)
 
@@ -66,8 +70,16 @@ async def create_transaction(
         db.refresh(db_transaction)
 
         if transaction.filelist:
-            for filepath in transaction.filelist:
-                db_filelist = Fileassets(business_id=db_transaction.transaction_id, filepath=filepath, type='transactions', userid=current_user.userid)
+            for file in transaction.filelist:
+                db_filelist = Fileassets(
+                    business_id=db_transaction.transaction_id, 
+                    filepath=file.filepath, 
+                    type='transactions', 
+                    userid=current_user.userid,
+                    created_at=datetime.now(timezone.utc),
+                    status=FileStatus.ACTIVE,
+                    category=file.photo_id,
+                )
                 db.add(db_filelist)
 
         if transaction.delFileids:
@@ -75,6 +87,8 @@ async def create_transaction(
                 db_filelist = db.query(Fileassets).filter(Fileassets.fileid == fileid).first()
                 if db_filelist:
                     db_filelist.status = FileStatus.DELETED
+                    db_filelist.update_userid = current_user.userid
+                    db_filelist.update_at = datetime.now(timezone.utc)
                     db.add(db_filelist)
 
         db.commit()
@@ -157,7 +171,7 @@ async def get_transaction_detail(
 
     # 获取关联的文件资产
     fileassets = db.query(Fileassets).filter(Fileassets.business_id == transaction.transaction_id, Fileassets.status == FileStatus.ACTIVE).all()
-    transaction.filelist = [fa.filepath for fa in fileassets]
+    transaction.filelist = [{"filepath": fa.filepath, "fileid": fa.fileid, "photo_id": fa.category} for fa in fileassets]
 
     create_username = db.query(User.username).filter(User.userid == transaction.create_userid).first()
     transaction.create_username = create_username[0] if create_username else ""
