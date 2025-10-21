@@ -34,5 +34,10 @@ class Settings(BaseSettings):
     # 签名配置
     SIGNING_KEYS: dict = eval(os.getenv("SIGNING_KEYS", "{\"app_ledger_v1\":\"zowiesoft\"}"))
 
+    # 日志配置
+    LOG_DIR: str = os.getenv("LOG_DIR", "logs")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_TO_CONSOLE: bool = bool(int(os.getenv("LOG_TO_CONSOLE", "0")))
+
 # 创建全局 settings 实例
 settings = Settings()

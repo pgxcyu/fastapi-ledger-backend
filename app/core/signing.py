@@ -7,6 +7,12 @@ from app.core.exceptions import BizException
 
 SIGN_WINDOW = 180  # 秒
 
+ISDEBUG = False
+
+def debug_print(msg: str):
+  if ISDEBUG:
+    print(msg)
+
 def _stable(obj: Any) -> Any:
   if obj is None: return None
   if isinstance(obj, (str,int,float,bool)): return obj
@@ -50,9 +56,10 @@ def canonicalize_query(req: Request) -> str:
 def get_secret_by_kid(kid: str) -> Optional[str]:
   # 建议配置在 settings.SIGNING_KEYS = {"app_ledger_v1":"zowiesoft", ...}
   from app.core.config import settings
-  print(f"调试信息 - SIGNING_KEYS配置: {settings.SIGNING_KEYS}")
-  print(f"调试信息 - 查询kid: {kid}")
+  debug_print(f"调试信息 - SIGNING_KEYS配置: {settings.SIGNING_KEYS}")
+  debug_print(f"调试信息 - 查询kid: {kid}")
   result = settings.SIGNING_KEYS.get(kid)
+  debug_print(f"调试信息 - 密钥查询结果: {result}")
   return result
 
 async def verify_signature(
@@ -64,40 +71,40 @@ async def verify_signature(
   x_signature: str = Header(..., alias="X-Signature"),
   idem: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
-  print(f"调试信息 - 接收到的请求头:")
-  print(f"X-Key-Id: {x_key_id}")
-  print(f"X-Timestamp: {x_timestamp}")
-  print(f"X-Nonce: {x_nonce}")
-  print(f"X-Signature: {x_signature}")
+  debug_print(f"调试信息 - 接收到的请求头:")
+  debug_print(f"X-Key-Id: {x_key_id}")
+  debug_print(f"X-Timestamp: {x_timestamp}")
+  debug_print(f"X-Nonce: {x_nonce}")
+  debug_print(f"X-Signature: {x_signature}")
   
   # 1) 时间窗
   try:
     ts = int(x_timestamp)
-    print(f"调试信息 - 时间戳转换成功: {ts}")
+    debug_print(f"调试信息 - 时间戳转换成功: {ts}")
   except Exception as e:
-    print(f"调试信息 - 时间戳转换失败: {e}")
+    debug_print(f"调试信息 - 时间戳转换失败: {e}")
     raise BizException(code=40101, message="无效的时间戳")
   
   current_time = int(time.time())
   time_diff = abs(current_time - ts)
-  print(f"调试信息 - 当前时间: {current_time}, 时间差: {time_diff}, 窗口: {SIGN_WINDOW}")
+  debug_print(f"调试信息 - 当前时间: {current_time}, 时间差: {time_diff}, 窗口: {SIGN_WINDOW}")
   
   if time_diff > SIGN_WINDOW:
     raise BizException(code=40101, message="时间戳过期")
 
   # 2) 防重放：kid+nonce 5 分钟唯一
   redis = getattr(request.app.state, "redis", None)
-  print(f"调试信息 - Redis可用: {redis is not None}")
+  debug_print(f"调试信息 - Redis可用: {redis is not None}")
   if redis:
     rkey = f"sig:{x_key_id}:{x_nonce}"
-    print(f"调试信息 - 检查重放键: {rkey}")
+    debug_print(f"调试信息 - 检查重放键: {rkey}")
     if await redis.exists(rkey):
       raise BizException(code=40101, message="重放检测")
     await redis.setex(rkey, 300, "1")
 
   # 3) 取密钥
   secret = get_secret_by_kid(x_key_id)
-  print(f"调试信息 - 获取密钥: {secret}")
+  debug_print(f"调试信息 - 获取密钥: {secret}")
   if not secret:
     raise BizException(code=40101, message="未知的密钥ID")
 
@@ -125,14 +132,14 @@ async def verify_signature(
   canonical = "\n".join([
     method, path_only, query_canon, body_hash, x_timestamp, x_nonce, (idem or ""), x_key_id
   ])
-  print(f"调试信息 - 构建的canonical字符串:\n{canonical}")
+  debug_print(f"调试信息 - 构建的canonical字符串:\n{canonical}")
   
   expected = base64.b64encode(hmac.new(secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).digest()).decode()
-  print(f"调试信息 - 计算的签名: {expected}")
-  print(f"调试信息 - 接收到的签名: {x_signature}")
+  debug_print(f"调试信息 - 计算的签名: {expected}")
+  debug_print(f"调试信息 - 接收到的签名: {x_signature}")
 
   if not hmac.compare_digest(expected, x_signature):
-    print("调试信息 - 签名验证失败")
+    debug_print("调试信息 - 签名验证失败")
     raise BizException(code=40101, message="签名验证失败")
 
   request.state.sign_verified = True

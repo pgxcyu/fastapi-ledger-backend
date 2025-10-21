@@ -1,104 +1,81 @@
 # app/core/logging.py
-import logging, json, uuid, time
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-from jose import JWTError, jwt
+import logging, json, os
+from logging.handlers import TimedRotatingFileHandler
 from app.core.config import settings
-from app.schemas.response import R
 
 class JSONFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record: logging.LogRecord):
         payload = {
+            "ts": int(record.created * 1000),
             "level": record.levelname,
             "msg": record.getMessage(),
             "logger": record.name,
         }
-        for k in ("request_id", "path", "method", "status_code", "elapsed_ms", "user_id"):
+        for k in ("request_id", "path", "method", "status_code", "elapsed_ms", "user_id", "ip"):
             v = getattr(record, k, None)
             if v is not None: payload[k] = v
         return json.dumps(payload, ensure_ascii=False)
 
+def _ensure_dir(path: str):
+    os.makedirs(path, exist_ok=True)
+
+def _make_rotating_handler(filename: str, level: int, formatter: logging.Formatter):
+    """
+    每天 0 点轮转，保留 7 天；UTF-8；线程安全。
+    """
+    handler = TimedRotatingFileHandler(
+        filename, when="midnight", backupCount=7, encoding="utf-8", utc=False
+    )
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+    return handler
+
 def setup_logging():
-    h = logging.StreamHandler()
-    h.setFormatter(JSONFormatter())
+    """
+    日志落地策略：
+      - 控制台：所有等级（开发期方便）
+      - logs/app.log：INFO+
+      - logs/error.log：ERROR+
+      - logs/access.log：仅 access 访问日志（INFO+）
+    """
+    log_dir = getattr(settings, "LOG_DIR", None) or os.getenv("LOG_DIR", "logs")
+    _ensure_dir(log_dir)
+
+    # 读取日志等级（默认 INFO）
+    level_name = (getattr(settings, "LOG_LEVEL", None) or os.getenv("LOG_LEVEL", "INFO")).upper()
+    root_level = getattr(logging, level_name, logging.INFO)
+
+    fmt = JSONFormatter()
+
+    # 文件
+    h_app_file   = _make_rotating_handler(os.path.join(log_dir, "app.log"),   logging.INFO,  fmt)
+    h_error_file = _make_rotating_handler(os.path.join(log_dir, "error.log"), logging.ERROR, fmt)
+    h_access_file= _make_rotating_handler(os.path.join(log_dir, "access.log"), logging.INFO, fmt)
+
+    # Root：业务 & 框架日志（不含访问日志）
     root = logging.getLogger()
     root.handlers.clear()
-    root.addHandler(h)
-    root.setLevel(logging.DEBUG)  # 设置为DEBUG级别以显示所有调试日志
+    root.setLevel(root_level)
+    root.addHandler(h_app_file)
+    root.addHandler(h_error_file)
 
+    # 访问日志：单独 logger，避免和业务日志混在一起
+    access_logger = logging.getLogger("access")
+    access_logger.handlers.clear()
+    access_logger.setLevel(logging.INFO)
+    access_logger.addHandler(h_access_file)
+    access_logger.propagate = False         # 不向上冒泡到 root，防止重复记录
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        resp = await call_next(request)
-        # 基础安全头
-        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
-        resp.headers.setdefault("X-Frame-Options", "DENY")
-        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        resp.headers.setdefault("Permissions-Policy",
-            "geolocation=(), microphone=(), camera=()")
-        # 如果全站 HTTPS，可开启：
-        resp.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
-        # 修改CSP配置以允许Swagger UI加载必要的外部资源
-        resp.headers.setdefault("Content-Security-Policy",
-            "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
-            "img-src 'self' https://fastapi.tiangolo.com; "
-            "font-src 'self' data:; "
-            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
-        )
-        return resp
+    # 控制台
+    if settings.LOG_TO_CONSOLE:
+        h_console = logging.StreamHandler()
+        h_console.setLevel(root_level)
+        h_console.setFormatter(fmt)
+        root.addHandler(h_console)
+        access_logger.addHandler(h_console)     # 开发期希望也看到访问日志；线上可去掉
 
-
-class AuthenticationMiddleware(BaseHTTPMiddleware):
-    """认证中间件 - 仅从JWT令牌中提取用户ID并设置到request.state"""
-    async def dispatch(self, request: Request, call_next):
-        token = None
-        
-        # 从Authorization头中提取JWT令牌
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-        
-        # 如果找到了令牌，尝试解码它
-        if token:
-            try:
-                # 解码JWT令牌
-                payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-                user_id = payload.get("sub")
-                if user_id:
-                    # 设置用户ID到request.state
-                    request.state.user_id = user_id
-                    logging.getLogger("auth").debug(f"Authenticated user: {user_id}")
-            except JWTError as e:
-                # 令牌无效，忽略错误
-                logging.getLogger("auth").debug(f"Invalid token: {str(e)}")
-        
-        # 继续处理请求
-        response = await call_next(request)
-        return response
-
-
-class RequestContextMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex
-        start = time.perf_counter()
-        response = await call_next(request)
-        elapsed = int((time.perf_counter() - start) * 1000)
-        response.headers["X-Request-ID"] = rid
-
-        logging.getLogger("access").info(
-            f"{request.method} {request.url.path}",
-            extra={
-                "request_id": rid,
-                "path": request.url.path,
-                "method": request.method,
-                "status_code": response.status_code,
-                "elapsed_ms": elapsed,
-                "user_id": getattr(request.state, "user_id", None),
-                "ip": request.client.host if request.client else None,
-                "user_agent": request.headers.get("User-Agent", ""),
-            }
-        )
-        
-        return response
+    # 其他业务子 logger（可按需添加）
+    for name in ("auth", "csrf", "security"):
+        lg = logging.getLogger(name)
+        lg.propagate = True                 # 让它们走 root 的 app.log / error.log
+        lg.setLevel(root_level)
