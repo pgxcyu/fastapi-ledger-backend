@@ -6,7 +6,7 @@ from app.core.config import settings
 class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord):
         payload = {
-            "ts": int(record.created * 1000),
+            "time": self.formatTime(record, self.datefmt),
             "level": record.levelname,
             "msg": record.getMessage(),
             "logger": record.name,
