@@ -85,6 +85,7 @@ async def list_user_sids(uid: str | int) -> list[str]:
 async def clear_user_sessions(uid: str | int):
     r = get_redis_client()
     sids = await list_user_sids(uid)
-    if not sids: return
+    if not sids: 
+        return
     await asyncio.gather(*(delete_session_sid(s) for s in sids))
     await r.delete(_user_sids_key(uid))

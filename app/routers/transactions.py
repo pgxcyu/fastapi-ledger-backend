@@ -22,6 +22,7 @@ from app.schemas.transactions import (
 )
 from app.core.idempotency import idem_done, save_idempotency_response, ensure_idempotency, idem_unlock
 from app.core.signing import verify_signature
+from fastapi_limiter.depends import RateLimiter
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ async def create_transaction(
         raise BizException(message=f"保存失败: {str(e)}")
     
 
-@router.get("/getRecords", response_model=R[PageResult[TransactionResponse]], description="获取交易记录列表", dependencies=[Depends(verify_signature)])
+@router.get("/getRecords", response_model=R[PageResult[TransactionResponse]], description="获取交易记录列表", dependencies=[Depends(verify_signature), Depends(RateLimiter(times=5, seconds=60))])
 def get_transactions(
     form: TransactionListQuery = Depends(), 
     current_user: User = Depends(get_current_user), 

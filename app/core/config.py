@@ -1,5 +1,6 @@
 # app/core/config.py
 import os
+import json
 
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
     CLEANUP_CRON: str = os.getenv("CLEANUP_CRON", "30 3 * * *")       # 每天 03:30
 
     # 签名配置
-    SIGNING_KEYS: dict = eval(os.getenv("SIGNING_KEYS", "{\"app_ledger_v1\":\"zowiesoft\"}"))
+    SIGNING_KEYS: dict = json.loads(os.getenv("SIGNING_KEYS", '{"app_ledger_v1":"zowiesoft"}'))
 
     # 日志配置
     LOG_DIR: str = os.getenv("LOG_DIR", "logs")

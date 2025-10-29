@@ -75,6 +75,7 @@ async def startup_event():
     try:
         redis_client = await init_redis()
         await FastAPILimiter.init(redis_client)
+        app.state.redis = redis_client
     except Exception as e:
         print(f"Warning: Failed to initialize Redis or FastAPILimiter: {e}")
     
