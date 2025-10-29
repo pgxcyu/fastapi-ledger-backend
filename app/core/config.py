@@ -39,5 +39,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_TO_CONSOLE: bool = bool(int(os.getenv("LOG_TO_CONSOLE", "0")))
 
+    # SM2 非登录密钥
+    SM2_PRIVATE_KEY_NOLOGIN: str = os.getenv("SM2_PRIVATE_KEY_NOLOGIN")
+    SM2_PUBLIC_KEY_NOLOGIN: str = os.getenv("SM2_PUBLIC_KEY_NOLOGIN")
+
 # 创建全局 settings 实例
 settings = Settings()

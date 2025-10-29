@@ -12,6 +12,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.crypto_sm2 import (
+    gen_sm2_keypair,
+    make_sm2,
+    sm2_decrypt_hex,
+    sm2_encrypt_hex,
+)
 from app.core.deps import get_current_user
 from app.core.exceptions import BizException
 from app.core.security import (
@@ -21,18 +27,22 @@ from app.core.security import (
     hash_password,
     validate_password_strength,
     verify_password,
+    get_sm2_client,
 )
 from app.core.session_store import (
-    clear_user_session,
-    get_user_session,
-    get_user_session_data,
     new_session_id,
-    set_user_session,
-    set_user_session_data,
+    add_user_session,
+    delete_session_sid,
+    set_session_kv,
+    get_session_kv,
+    get_active_sid,
+    set_active_sid,
+    expire_session_sid,
+    clear_active_sid,
 )
 from app.db.models import Logger, User
 from app.db.session import get_db
-from app.schemas.auth import RegisterIn, TokenWithRefresh, UserOut, loginModel
+from app.schemas.auth import LoginModel, RegisterIn, TokenWithRefresh, UserOut
 from app.schemas.response import R
 
 router = APIRouter()
@@ -50,20 +60,40 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=R[TokenWithRefresh], dependencies=[Depends(RateLimiter(times=5, seconds=60))])
-async def login(request: Request, payload: loginModel, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == payload.username).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+async def login(request: Request, payload: LoginModel, db: Session = Depends(get_db)):
+    sm2_no_login = make_sm2(settings.SM2_PRIVATE_KEY_NOLOGIN, settings.SM2_PUBLIC_KEY_NOLOGIN)
+    # username = sm2_no_login.decrypt(bytes.fromhex(payload.username)).decode("utf-8")
+    username = sm2_decrypt_hex(sm2_no_login, payload.username)
+    password = sm2_decrypt_hex(sm2_no_login, payload.password)
+
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not verify_password(password, user.password_hash):
         raise BizException(message="用户名或密码错误")
 
-    sid = await new_session_id()
-    await set_user_session(user.userid, sid)
+    # 检查是否有活跃会话
+    active_sid = await get_active_sid(user.userid)
+    if active_sid:
+        # 若有活跃会话，先删除旧会话
+        await delete_session_sid(active_sid)
+
+    
+    sid = new_session_id()
+    await add_user_session(user.userid, sid)
+    await set_active_sid(user.userid, sid)
     
     # 创建访问令牌和刷新令牌
     access_token = create_access_token({"sub": user.userid, "sid": sid})
     refresh_token = create_refresh_token({"sub": user.userid, "sid": sid})
 
     # 将刷新令牌存储到Redis，用于验证和注销
-    await set_user_session_data(user.userid, "refresh_token", refresh_token)
+    await set_session_kv(sid, "refresh_token", refresh_token)
+
+    # 存储前端传入的SM2公钥
+    await set_session_kv(sid, "cli_pubkey", payload.cli_pubkey)
+
+    # 生成SM2密钥对，私钥存储在Redis，公钥返回给前端
+    svr_privkey, svr_pubkey = gen_sm2_keypair()
+    await set_session_kv(sid, "svr_privkey", svr_privkey)
 
     # 增强日志记录，添加更多上下文信息
     log_info = {
@@ -72,7 +102,7 @@ async def login(request: Request, payload: loginModel, db: Session = Depends(get
         "user_agent": request.headers.get("User-Agent", ""),
         "login_time": datetime.now(timezone.utc).isoformat()
     }
-    # 使用TimestampMixin的默认服务器时间
+    
     logger = Logger(
         userid=user.userid, 
         action="login", 
@@ -99,6 +129,7 @@ async def login(request: Request, payload: loginModel, db: Session = Depends(get
         "refresh_token": refresh_token,
         "token_type": "bearer",
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "svr_pubkey": svr_pubkey,
     })
 
 @router.post("/refresh", response_model=R[TokenWithRefresh], dependencies=[Depends(RateLimiter(times=5, seconds=60))])
@@ -127,21 +158,26 @@ async def refresh_token(
             raise BizException(message="用户不存在")
         
         # 验证会话ID是否有效
-        current_sid = await get_user_session(user_id)
-        if current_sid is None or current_sid != sid:
-            raise BizException(message="该账号已在其他设备登录")
+        active_sid = await get_active_sid(user_id)
+        if active_sid is None or active_sid != sid:
+            raise BizException(message="会话已失效或在其他设备登录")
         
         # 验证存储的刷新令牌是否匹配（防止令牌重用）
-        stored_refresh_token = await get_user_session_data(user_id, "refresh_token")
-        if stored_refresh_token != refresh_token:
+        stored_refresh_token = await get_session_kv(sid, "refresh_token")
+        if not stored_refresh_token or stored_refresh_token != refresh_token:
             raise BizException(message="无效的刷新令牌")
         
         # 生成新的访问令牌和刷新令牌
         new_access_token = create_access_token({"sub": user_id, "sid": sid})
         new_refresh_token = create_refresh_token({"sub": user_id, "sid": sid})
         
+        await add_user_session(user_id, sid)
+        await set_active_sid(user_id, sid)
+
         # 更新存储的刷新令牌
-        await set_user_session_data(user_id, "refresh_token", new_refresh_token)
+        await set_session_kv(sid, "refresh_token", new_refresh_token)
+
+        await expire_session_sid(sid)
         
         # 创建FastAPI Response对象
         return JSONResponse(
@@ -163,12 +199,24 @@ async def refresh_token(
         raise BizException(message="令牌刷新失败")
 
 
-@router.get("/me", response_model=R[UserOut])
-async def me(current_user: User = Depends(get_current_user)):
-    return R.ok(data={"userid": current_user.userid, "username": current_user.username})
-
-
 @router.post("/logout", response_model=R[None])
 async def logout(current_user: User = Depends(get_current_user)):
-    await clear_user_session(current_user.userid)
+    sid = getattr(current_user, "sid", None)
+    
+    if not sid:
+        raise BizException(code=401, message="会话不存在或已过期")
+
+    await delete_session_sid(sid)
+    # 只在当前 sid 为 active 时清空指针，防并发误删
+    if await get_active_sid(current_user.userid) == sid:
+        await clear_active_sid(current_user.userid)
+
     return R.ok(message="退出成功")
+
+
+@router.get("/me", response_model=R[UserOut])
+async def me(current_user: User = Depends(get_current_user), sm2_client = Depends(get_sm2_client)):
+    return R.ok(data={
+        "userid": current_user.userid,
+        "username": sm2_encrypt_hex(sm2_client, current_user.username),
+    })

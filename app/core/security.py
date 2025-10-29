@@ -47,3 +47,26 @@ def decode_token(token: str) -> dict:
         return payload
     except jwt.JWTError:
         raise BizException(code=401, message="无效的令牌")
+
+from app.core.crypto_sm2 import make_sm2
+from app.db.models import User
+from fastapi import Depends
+from app.core.session_store import get_session_kv, get_active_sid
+from app.core.deps import get_current_user
+
+# 创建SM2客户端，用于会话期间加密/解密
+async def get_sm2_client(current_user: User = Depends(get_current_user)):
+    # 优先使用 current_user 上可能已经设置的 sid
+    sid = getattr(current_user, "sid", None)
+    if not sid:
+        # 如果没有，再从活动会话中获取
+        sid = await get_active_sid(current_user.userid)
+        if not sid:
+            raise BizException(code=401, message="未登录或登录过期")
+    
+    cli_pubkey = await get_session_kv(sid, "cli_pubkey")
+    svr_privkey = await get_session_kv(sid, "svr_privkey")
+
+    if not cli_pubkey or not svr_privkey:
+        raise BizException(message="获取SM2密钥对失败")
+    return make_sm2(svr_privkey, cli_pubkey, strict=False)

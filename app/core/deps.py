@@ -8,7 +8,7 @@ from app.db.models import User
 from app.db.session import get_db
 
 from .config import settings
-from .session_store import get_user_session
+from .session_store import get_active_sid
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -24,11 +24,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     except JWTError:
         raise credentials_exc
 
-    current_sid = await get_user_session(sub)
+    current_sid = await get_active_sid(sub)
     if current_sid is None or current_sid != sid:
         raise BizException(code=401, message="该账号已在其他设备登录")
 
     user = db.query(User).filter(User.userid == sub).first()
     if not user:
         raise BizException(code=500, message="用户不存在")
+    
+    setattr(user, "sid", sid)
     return user
