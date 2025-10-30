@@ -1,9 +1,15 @@
-import logging, json, uuid, time, os
+import json
+import logging
 from logging.handlers import TimedRotatingFileHandler
+import os
+import time
+import uuid
+
+from jose import JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-from jose import JWTError, jwt
+
 from app.core.config import settings
 from app.schemas.response import R
 

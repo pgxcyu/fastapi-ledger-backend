@@ -1,9 +1,16 @@
 from datetime import datetime, timedelta, timezone
 import re
+
+from fastapi import Depends
 from jose import jwt
 from passlib.context import CryptContext
+
 from app.core.config import settings
+from app.core.crypto_sm2 import make_sm2
+from app.core.deps import get_current_user
 from app.core.exceptions import BizException
+from app.core.session_store import get_active_sid, get_session_kv
+from app.db.models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -48,11 +55,7 @@ def decode_token(token: str) -> dict:
     except jwt.JWTError:
         raise BizException(code=401, message="无效的令牌")
 
-from app.core.crypto_sm2 import make_sm2
-from app.db.models import User
-from fastapi import Depends
-from app.core.session_store import get_session_kv, get_active_sid
-from app.core.deps import get_current_user
+
 
 # 创建SM2客户端，用于会话期间加密/解密
 async def get_sm2_client(current_user: User = Depends(get_current_user)):

@@ -21,12 +21,12 @@ from app.core.exception_handlers import (
     validation_exception_handler,
 )
 from app.core.exceptions import BizException
+from app.core.logging import setup_logging
 from app.core.middleware import (
     AuthenticationMiddleware,
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
 )
-from app.core.logging import setup_logging
 from app.db.init_db import init_db
 from app.db.redis_session import close_redis, init_redis
 from app.db.session import get_db

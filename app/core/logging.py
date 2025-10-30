@@ -1,6 +1,9 @@
 # app/core/logging.py
-import logging, json, os
+import json
+import logging
 from logging.handlers import TimedRotatingFileHandler
+import os
+
 from app.core.config import settings
 
 class JSONFormatter(logging.Formatter):

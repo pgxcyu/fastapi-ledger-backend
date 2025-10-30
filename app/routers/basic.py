@@ -1,17 +1,18 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, status, Depends, Query
-from typing import List, Dict, Any
-import os
-import uuid
-import shutil
-import hashlib
 from datetime import datetime
+import hashlib
+import os
+import shutil
+from typing import Any, Dict, List
+import uuid
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi_limiter.depends import RateLimiter
+from sqlalchemy.orm import Session
+
+from app.core.deps import get_current_user
 from app.db.models import User
 from app.db.session import get_db
-from sqlalchemy.orm import Session
-from app.core.deps import get_current_user
 from app.schemas.response import R
-from fastapi_limiter.depends import RateLimiter
-
 from app.tasks.cleanup import cleanup_files
 
 # 创建路由实例
@@ -130,18 +131,6 @@ def upload_file(
             
             # 构建URL
             file_url = f"/static/upload_files/{rel_path.replace(os.sep, '/')}"
-            
-            # 生成唯一文件名，避免覆盖 
-            # file_extension = os.path.splitext(file.filename)[1]
-            # unique_filename = f"{uuid.uuid4().hex}{file_extension}"
-            # file_path = os.path.join(UPLOAD_DIR, unique_filename) 
-            
-            # # 保存文件 
-            # with open(file_path, "wb") as buffer:
-            #     shutil.copyfileobj(file.file, buffer) 
-                
-            # # 构建访问URL
-            # file_url = f"/static/upload_files/{unique_filename}"
             
             # 记录成功上传的文件信息
             result["success"].append({

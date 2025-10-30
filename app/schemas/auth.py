@@ -1,5 +1,6 @@
-from typing_extensions import Optional
 from pydantic import BaseModel, Field
+from typing_extensions import Optional
+
 from app.core.config import settings
 
 class RegisterIn(BaseModel):

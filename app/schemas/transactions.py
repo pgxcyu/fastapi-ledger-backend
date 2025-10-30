@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
@@ -41,7 +41,6 @@ class TransactionResponse(BaseModel):
 
 
 class TransactionListQuery(PageParams):
-    # 你如果有 occurred_at 就用 occurred_at；没有就先用 created_at
     date_from: Optional[datetime] = Field(None, description="开始时间（含）")
     date_to: Optional[datetime] = Field(None, description="结束时间（含）")
     type: Optional[TransactionType] = None

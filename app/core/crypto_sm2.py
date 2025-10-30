@@ -1,9 +1,9 @@
 # app/core/crypto_sm2.py
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from typing import Literal, Optional, Tuple, Union
-import re
 import os
+import re
+from typing import Literal, Optional, Tuple, Union
 
 from gmssl.sm2 import CryptSM2
 

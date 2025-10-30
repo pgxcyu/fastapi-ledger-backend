@@ -1,13 +1,10 @@
 from datetime import datetime, timezone
-from ntpath import isdir
-from re import M
-import string
 from uuid import uuid4
 
 from sqlalchemy import DateTime, Enum as SqlEnum, Integer, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from app.domains.enums import TransactionType, UserStatus, FileStatus
+from app.domains.enums import FileStatus, TransactionType, UserStatus
 
 class Base(DeclarativeBase):
     pass
@@ -56,3 +53,11 @@ class Fileassets(Base, TimestampMixin):
     userid: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[FileStatus] = mapped_column(SqlEnum(FileStatus), default=FileStatus.ACTIVE, nullable=False)
     update_userid: Mapped[str] = mapped_column(String(32), nullable=True)
+
+class UserSummary(Base):
+    __tablename__ = "v_user_txn_summary"
+    __table_args__ = {"info": {"is_view": True}}
+    userid: Mapped[str] = mapped_column(String(32), primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String(50), index=True)
+    txn_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_amount: Mapped[float] = mapped_column(Integer, default=0, nullable=False)
