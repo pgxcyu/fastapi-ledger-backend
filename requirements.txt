@@ -5,9 +5,8 @@ uvicorn[standard]==0.30.6
 # ORM & 数据库
 SQLAlchemy==2.0.36
 redis==5.0.1
-redis.asyncio==5.0.1
 alembic==1.13.2
-psycopg[binary]==3.2.1
+psycopg[binary]==3.2.12
 aiosqlite==0.20.0
 
 # 安全 / JWT / 密码
@@ -15,17 +14,19 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 fastapi-limiter==0.1.6
-gmssl==3.0.1
+gmssl==3.2.2
 
 # 其它
 celery==5.5.0
-sentry-sdk==2.1.0
+flower==1.2.0
+eventlet==0.36.1
 APScheduler==3.10.4
 tzdata==2025.2
 tzlocal==5.2
 python-multipart==0.0.20
 starlette==0.38.6
 numpy==1.26.4
+requests==2.32.3
 
 # Pydantic (FastAPI 用于数据校验)
 pydantic==2.9.1
@@ -36,3 +37,6 @@ opencv-python==4.10.0.84
 
 # 可选：环境变量配置
 python-dotenv==1.0.1
+
+# 日志
+loguru==0.7.2

@@ -1,5 +1,3 @@
-from contextlib import asynccontextmanager
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
@@ -8,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi_limiter import FastAPILimiter
 from pydantic import ValidationError
-import redis.asyncio as redis
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -30,10 +27,8 @@ from app.core.middleware import (
 from app.db.init_db import init_db
 from app.db.redis_session import close_redis, init_redis
 from app.db.session import get_db
-from app.routers import auth, basic, transactions, videoserver
-from app.schemas.response import R
+from app.routers import auth, basic, system, transactions, videoserver
 from app.tasks.cleanup import cleanup_files
-
 
 app = FastAPI(title="FastAPI Ledger (Kickoff)")
 
@@ -122,10 +117,11 @@ async def shutdown_event():
 #     )
 
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(transactions.router, prefix="/transactions", tags=["transactions"])
 app.include_router(basic.router, prefix="/basic", tags=["basic"])
 app.include_router(videoserver.router, prefix="/videoserver", tags=["videoserver"])
+app.include_router(system.router, prefix="/system", tags=["system"])

@@ -1,4 +1,4 @@
-FROM python:latest
+FROM python:3.13.9
 
 LABEL authors="pgxcyu"
 
@@ -10,7 +10,4 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 COPY ./app /code/app
 
-EXPOSE 9000
-
-# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000", "--reload"]
-CMD ["gunicorn","-k","uvicorn.workers.UvicornWorker","-w","2","-b","0.0.0.0:9000","app.main:app"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000"]

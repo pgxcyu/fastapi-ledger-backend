@@ -15,3 +15,4 @@ class FileStatus(str, Enum):
     ACTIVE = "active"
     QUARANTINE = "quarantine"
     DELETED = "deleted"
+    MISSING = "missing"

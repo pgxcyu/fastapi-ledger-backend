@@ -16,7 +16,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # 关键3：把 URL 写回 Alembic config（避免用死在 alembic.ini 的占位串）
-config.set_main_option("sqlalchemy.url", settings.SQLALCHEMY_DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 

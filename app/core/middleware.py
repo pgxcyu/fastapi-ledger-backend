@@ -1,9 +1,6 @@
-import json
-import logging
-from logging.handlers import TimedRotatingFileHandler
-import os
 import time
 import uuid
+from app.core.logging import middleware_logger, auth_logger, access_logger
 
 from jose import JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -11,7 +8,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.config import settings
-from app.schemas.response import R
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -35,7 +31,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             )
             return resp
         except Exception as e:
-            logging.getLogger("middleware").error(f"Error in SecurityHeadersMiddleware: {str(e)}")
+            middleware_logger.error(f"Error in SecurityHeadersMiddleware: {str(e)}")
             raise
 
 
@@ -56,46 +52,55 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                     # 解码JWT令牌
                     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
                     user_id = payload.get("sub")
-                    if user_id:
-                        # 设置用户ID到request.state
-                        request.state.user_id = user_id
-                        logging.getLogger("auth").debug(f"Authenticated user: {user_id}")
+                    sid = payload.get("sid")
+
+                    if user_id: request.state.user_id = user_id
+                    if sid: request.state.sid = sid
+                    auth_logger.debug(f"Authenticated user: {user_id}")
                 except JWTError as e:
                     # 令牌无效，忽略错误
-                    logging.getLogger("auth").debug(f"Invalid token: {str(e)}")
+                    auth_logger.debug(f"Invalid token: {str(e)}")
             
             # 继续处理请求
             response = await call_next(request)
             return response
         except Exception as e:
-            logging.getLogger("middleware").error(f"Error in AuthenticationMiddleware: {str(e)}")
+            middleware_logger.error(f"Error in AuthenticationMiddleware: {str(e)}")
             raise
 
+
+from app.core.request_ctx import set_request_id, set_user_context
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         try:
             rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+            set_request_id(rid)
+
             start = time.perf_counter()
             response = await call_next(request)
             elapsed = int((time.perf_counter() - start) * 1000)
             response.headers["X-Request-ID"] = rid
 
-            logging.getLogger("access").info(
-                f"{request.method} {request.url.path}",
-                extra={
-                    "request_id": rid,
-                    "path": request.url.path,
-                    "method": request.method,
-                    "status_code": response.status_code,
-                    "elapsed_ms": elapsed,
-                    "user_id": getattr(request.state, "user_id", None),
-                    "ip": request.client.host if request.client else None,
-                    "user_agent": request.headers.get("User-Agent", ""),
-                }
-            )
+            user_id = getattr(request.state, "user_id", "")
+            sid = getattr(request.state, "sid", "")
+            set_user_context(user_id, sid)
+
+            ctx = {
+                "request_id": rid,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "elapsed_ms": elapsed,
+                "user_id": user_id,
+                "sid": sid,
+                "ip": request.client.host if request.client else None,
+                "user_agent": request.headers.get("User-Agent", ""),
+            }
+
+            access_logger.bind(**ctx).info("request")
             
             return response
         except Exception as e:
-            logging.getLogger("middleware").error(f"Error in RequestContextMiddleware: {str(e)}")
+            middleware_logger.error(f"Error in RequestContextMiddleware: {str(e)}")
             raise

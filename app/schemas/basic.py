@@ -15,3 +15,4 @@ class PageResult(BaseModel, Generic[T]):
     page_size: int
     total: int
     items: List[T]
+    extras: Optional[dict] = None

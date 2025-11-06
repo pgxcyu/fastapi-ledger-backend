@@ -9,7 +9,7 @@ venv/
 .venv/
 
 # Static files and uploads
-app/static/
+static/
 
 # Database
 *.db

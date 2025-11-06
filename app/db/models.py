@@ -55,9 +55,10 @@ class Fileassets(Base, TimestampMixin):
     update_userid: Mapped[str] = mapped_column(String(32), nullable=True)
 
 class UserSummary(Base):
-    __tablename__ = "v_user_txn_summary"
+    __tablename__ = "user_transaction_summary"
     __table_args__ = {"info": {"is_view": True}}
     userid: Mapped[str] = mapped_column(String(32), primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(50), index=True)
-    txn_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    total_amount: Mapped[float] = mapped_column(Integer, default=0, nullable=False)
+    total_transactions: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    total_income: Mapped[float] = mapped_column(Integer, default=0, nullable=True)
+    total_expense: Mapped[float] = mapped_column(Integer, default=0, nullable=True)

@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 import json
-import logging
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Response, status
@@ -18,13 +17,13 @@ from app.core.crypto_sm2 import (
     sm2_decrypt_hex,
     sm2_encrypt_hex,
 )
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_sm2_client
 from app.core.exceptions import BizException
+from app.core.logging import auth_logger
 from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
-    get_sm2_client,
     hash_password,
     validate_password_strength,
     verify_password,
@@ -111,15 +110,13 @@ async def login(request: Request, payload: LoginModel, db: Session = Depends(get
     db.add(logger); db.commit()
     
     # 同时记录到应用日志
-    logging.getLogger("auth").info(
-        "User logged in",
-        extra={
-            "user_id": user.userid,
-            "username": user.username,
-            "ip": request.client.host if request.client else None,
-            "user_agent": request.headers.get("User-Agent", ""),
-            "phone_info": payload.phoneinfo
-        }
+    auth_logger.info(
+        "User logged in", 
+        user_id=user.userid,
+        username=user.username,
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent", ""),
+        phone_info=payload.phoneinfo
     )
 
     # 直接返回响应数据，让FastAPI自动处理响应创建

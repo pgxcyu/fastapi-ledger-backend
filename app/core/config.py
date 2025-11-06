@@ -15,18 +15,21 @@ class Settings(BaseSettings):
     # 安全配置
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+
+    # ====== Auth / Tokens ======
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))   
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
-
-    # 数据库配置
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    SQLALCHEMY_DATABASE_URL: str = os.getenv("SQLALCHEMY_DATABASE_URL", "postgresql+psycopg://postgres:152183312@127.0.0.1:5432/fastapi-ledger")
-
     SESSION_TTL_SECONDS: int = int(os.getenv("SESSION_TTL_SECONDS", "2592000"))  # 30 天
 
-    # 孤儿文件配置
-    UPLOAD_DIR: str = os.path.join(BASE_DIR, "app/static/upload_files")
-    QUARANTINE_DIR: str = os.path.join(BASE_DIR, "app/static/quarantine")
+    # 数据库配置
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:152183312@127.0.0.1:5432/fastapi-ledger")
+
+    # ====== Storage ======
+    UPLOAD_DIR: str = os.path.join(BASE_DIR, "static/upload_files")
+    QUARANTINE_DIR: str = os.path.join(BASE_DIR, "static/quarantine")
+
+    # ====== Retention ======
     UNTRACKED_FS_RETENTION_DAYS: int = int(os.getenv("UNTRACKED_FS_RETENTION_DAYS", "2"))     # 磁盘未入库保留期
     UNLINKED_DB_RETENTION_DAYS: int = int(os.getenv("UNLINKED_DB_RETENTION_DAYS", "2"))      # DB 未绑定保留期
     QUARANTINE_LIFETIME_DAYS: int = int(os.getenv("QUARANTINE_LIFETIME_DAYS", "7"))      # 隔离区保留天数

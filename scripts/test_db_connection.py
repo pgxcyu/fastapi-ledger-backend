@@ -13,7 +13,7 @@ def test_db_connection():
     """测试PostgreSQL数据库连接"""
     try:
         # 从环境变量获取数据库URL
-        db_url = os.getenv("SQLALCHEMY_DATABASE_URL", "postgresql+psycopg://postgres:152183312@localhost:5432/fastapi-ledger")
+        db_url = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:152183312@localhost:5432/fastapi-ledger")
         print(f"尝试连接到数据库: {db_url}")
         
         # 创建数据库引擎

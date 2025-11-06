@@ -1,0 +1,64 @@
+# Docker Compose 配置文件 - 移除了过时的version属性
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ledger-db
+    environment:
+      POSTGRES_DB: fastapi-ledger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 152183312
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi-ledger || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ledger-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    container_name: ledger-api
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: ./.env
+    environment:
+      # 覆盖/补充 .env 中的变量（容器内互联用服务名）
+      DATABASE_URL: postgresql+psycopg://postgres:152183312@db:5432/fastapi-ledger
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./data/uploads:/code/app/static/upload_files
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/readyz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    expose:
+      - "9000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ledger-nginx
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+networks:
+  default:
+    name: ledger-net

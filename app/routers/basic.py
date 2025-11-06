@@ -14,12 +14,13 @@ from app.db.models import User
 from app.db.session import get_db
 from app.schemas.response import R
 from app.tasks.cleanup import cleanup_files
+from app.tasks.celery_tasks import cleanup_files_task
 
 # 创建路由实例
 router = APIRouter()
 
 # 配置项
-STATIC_ROOT = os.path.join("app", "static")              # 统一静态根
+STATIC_ROOT = os.path.join("static")              # 统一静态根
 UPLOAD_PATH = "upload_files"
 UPLOAD_DIR = os.path.join(STATIC_ROOT, UPLOAD_PATH)
 MAX_FILE_SIZE_MB = 10
@@ -166,5 +167,25 @@ def cleanup_orphans_api(
     db: Session = Depends(get_db),
     # current_user=Depends(get_current_user)  # + 权限校验
 ): 
-    report = cleanup_files(db, dry_run=dry_run)
-    return R.ok(data=report, message="已完成文件清理" if not dry_run else "模拟运行完成，未实际删除文件")
+    # report = cleanup_files(db, dry_run=dry_run)
+    # return R.ok(data=report, message="已完成文件清理" if not dry_run else "模拟运行完成，未实际删除文件")
+    task = cleanup_files_task.delay(dry_run=dry_run)
+    return R.ok(data={"task_id": task.id}, message="文件清理任务已启动")
+
+@router.get("/ops/cleanup-orphans/{task_id}", response_model=R[dict])
+def get_cleanup_orphans_task_status(
+    task_id: str,
+    db: Session = Depends(get_db),
+    # current_user=Depends(get_current_user)  # + 权限校验
+):
+    task = cleanup_files_task.AsyncResult(task_id)
+    if task.state == "PENDING":
+        return R.ok(data={"state": task.state}, message="任务已提交")
+    elif task.state == "PROGRESS":
+        return R.ok(data={"state": task.state, "progress": task.info.get("progress", 0)}, message="任务进行中")
+    elif task.state == "SUCCESS":
+        return R.ok(data={"state": task.state, "result": task.result}, message="任务完成")
+    elif task.state == "FAILURE":
+        return R.fail(data={"state": task.state, "error": str(task.info)}, message="任务失败")
+    else:
+        return R.fail(data={"state": task.state}, message="未知任务状态")

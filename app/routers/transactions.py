@@ -15,10 +15,9 @@ from app.core.idempotency import (
     ensure_idempotency,
     idem_done,
     idem_unlock,
-    save_idempotency_response,
 )
 from app.core.signing import verify_signature
-from app.db.models import Fileassets, Transaction, User
+from app.db.models import Fileassets, Transaction, User, UserSummary
 from app.db.redis_session import get_redis_client
 from app.domains.enums import FileStatus
 from app.schemas.basic import PageResult
@@ -26,8 +25,10 @@ from app.schemas.response import R
 from app.schemas.transactions import (
     TransactionCreate,
     TransactionListQuery,
-    TransactionResponse,
+    TransactionResponse
 )
+from app.tasks.celery_tasks import export_transactions_by_user_task
+
 
 router = APIRouter()
 
@@ -146,8 +147,20 @@ def get_transactions(
     rows = query.offset((form.page - 1) * form.page_size).limit(form.page_size).all()
     
     items = [TransactionResponse.model_validate(t) for t in rows]
+
+    summary = db.query(UserSummary).filter(UserSummary.userid == userid).first()
     
-    page = PageResult[TransactionResponse](page=form.page, page_size=form.page_size, items=items, total=total)
+    page = PageResult[TransactionResponse](
+        page=form.page, 
+        page_size=form.page_size, 
+        items=items, 
+        total=total,
+        extras={
+            "total_transactions": summary.total_transactions,
+            "total_income": summary.total_income,
+            "total_expense": summary.total_expense,
+        }
+    )
 
     return R.ok(data=page)
 
@@ -186,7 +199,7 @@ async def get_transaction_detail(
     transaction_response = TransactionResponse.model_validate(transaction)
     
     try:
-        await redis_client.setex(cache_key, 1440, transaction_response.model_dump_json())
+        await redis_client.set(cache_key, transaction_response.model_dump_json(), ex=1440)
     except Exception as e:
         pass
     
@@ -233,7 +246,7 @@ async def delete_transaction(
                 relative_path = fileasset.filepath
             
             # 结合项目根目录和静态文件目录构建完整文件系统路径
-            full_path = os.path.join(settings.BASE_DIR, "app", "static", relative_path)
+            full_path = os.path.join(settings.BASE_DIR, "static", relative_path)
             print(f"尝试删除文件: {full_path}")
             
             if os.path.exists(full_path):
@@ -247,3 +260,18 @@ async def delete_transaction(
     
 
     return R.ok(message="交易记录已成功删除")
+
+@router.get("/exportTransactionsByUser", response_model=R, description="导出用户交易记录", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+async def export_transactions_by_user(
+    user_id: str
+):
+    task = export_transactions_by_user_task.delay(user_id)
+    return R.ok(data={"task_id": task.id}, message="导出任务已启动")
+
+
+@router.get("/getExportTaskStatus", response_model=R, description="获取导出任务状态")
+async def get_export_task_status(
+    task_id: str
+):
+    task = export_transactions_by_user_task.AsyncResult(task_id)
+    return R.ok(data={"task_status": task.status, "task_result": task.result})
