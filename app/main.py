@@ -29,6 +29,8 @@ from app.db.redis_session import close_redis, init_redis
 from app.routers import auth, basic, system, transactions, videoserver
 from app.tasks.cleanup import cleanup_files
 
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
+
 app = FastAPI(title="FastAPI Ledger (Kickoff)")
 
 setup_logging()
@@ -60,6 +62,26 @@ async def run_cleanup_job(dry_run: bool = False):
         cleanup_files(db, dry_run=dry_run)
     finally:
         db.close()
+
+
+def setup_prometheus():
+    print("[DEBUG] 正在配置 Prometheus 监控...")
+    try:
+        # 创建简单的 Instrumentator 实例
+        instrumentator = Instrumentator(should_group_status_codes=True)
+        # 添加基本指标
+        instrumentator.add(metrics.latency())
+        # 为应用添加指标收集
+        instrumentator.instrument(app)
+        # 暴露 /metrics 端点
+        instrumentator.expose(app, endpoint="/metrics")
+        print("[DEBUG] Prometheus 监控配置成功，/metrics 端点已启用")
+    except Exception as e:
+        print(f"[ERROR] Prometheus 监控配置失败: {e}")
+        import traceback
+        traceback.print_exc()
+    
+setup_prometheus()
 
 @app.on_event("startup")
 async def startup_event():

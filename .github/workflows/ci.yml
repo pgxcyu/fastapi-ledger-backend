@@ -1,0 +1,45 @@
+name: CI
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: ledger_user
+          POSTGRES_PASSWORD: ledger_pass
+          POSTGRES_DB: ledger_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U ledger_user -d ledger_test"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DATABASE_URL: postgresql+psycopg2://ledger_user:ledger_pass@localhost:5432/ledger_test
+      REDIS_URL: redis://localhost:6379/0
+      LOG_LEVEL: INFO
+      SECRET_KEY: testsecret
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov requests
+      - name: DB migrate (optional)
+        run: |
+          # 如你使用 Alembic：alembic upgrade head
+          echo "Run DB migrations if needed"
+      - name: Run tests
+        run: pytest -q --maxfail=1 --disable-warnings --cov=app

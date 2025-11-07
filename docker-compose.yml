@@ -46,7 +46,7 @@ services:
       - logs:/code/logs
       - static:/code/static
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/docs >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/system/readyz >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 12

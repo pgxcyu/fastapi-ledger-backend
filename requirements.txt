@@ -28,6 +28,7 @@ starlette==0.38.6
 numpy==1.26.4
 pandas==2.2.3
 requests==2.32.3
+prometheus-fastapi-instrumentator==7.0.0
 
 # Pydantic (FastAPI 用于数据校验)
 pydantic==2.9.1
@@ -41,3 +42,8 @@ python-dotenv==1.0.1
 
 # 日志
 loguru==0.7.2
+
+# 测试相关
+pytest==8.3.3
+pytest-cov==5.0.0
+pytest-asyncio==0.24.0
