@@ -36,14 +36,12 @@ jobs:
         run: |
           python -m pip install -U pip
           pip install -r requirements.txt
-      - name: Run database migrations with conditional table creation
+      - name: Create database tables directly
         run: |
-          # Initialize database by first creating the alembic_version table only
-          python -c "from app.core.config import settings; from sqlalchemy import create_engine, text; engine = create_engine(settings.DATABASE_URL); with engine.connect() as conn: conn.execute(text('CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))')); conn.commit()"
-          # Mark all migrations as applied to avoid running them
-          python -c "from app.core.config import settings; from sqlalchemy import create_engine, text; engine = create_engine(settings.DATABASE_URL); with engine.connect() as conn: conn.execute(text('INSERT INTO alembic_version (version_num) VALUES (:version) ON CONFLICT (version_num) DO NOTHING'), {'version': 'cc41ba1ff913'}); conn.commit()"
-          # Now create all tables
-          python -c "from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets, Logger; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine)"
+          # Create a simple Python script to initialize the database
+          echo "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets, Logger; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')" > init_db.py
+          # Run the initialization script
+          python app/db/db_session.py
       - name: Run tests
         run: pytest -q --maxfail=1 --disable-warnings --cov=app
       - name: Upload test coverage
