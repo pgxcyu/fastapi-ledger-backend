@@ -46,7 +46,8 @@ jobs:
         run: |
           # Set PYTHONPATH to ensure Python can find the app module
           export PYTHONPATH=$PWD
-          pytest -q --maxfail=1 --disable-warnings --cov=app
+          # 只运行tests目录中的测试，排除scripts目录
+          pytest -q --maxfail=1 --disable-warnings --cov=app tests/
       - name: Upload test coverage
         uses: actions/upload-artifact@v4
         with:
