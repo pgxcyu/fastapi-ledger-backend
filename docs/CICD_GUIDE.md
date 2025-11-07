@@ -31,7 +31,7 @@
   - 运行测试并生成覆盖率报告
   - 上传覆盖率报告
 
-具体实现中，在执行迁移前会先使用 SQLAlchemy 创建所有数据库表以避免迁移失败
+具体实现中，采用了更高级的数据库初始化策略，先创建 alembic_version 表并标记最新迁移为已应用，然后再创建所有数据库表，避免运行实际迁移导致的冲突问题
 
 #### 2. `build` 作业
 - 依赖：test 作业成功
@@ -61,8 +61,8 @@
    - 确认项目依赖是否都在 requirements.txt 中
 
 3. **数据库迁移错误**：
-   - 问题：运行 `alembic upgrade head` 时出现 `psycopg.errors.UndefinedTable: relation "transactions" does not exist`
-   - 解决方法：在运行迁移之前，确保已先创建所有数据库表，可使用 SQLAlchemy 的 `ModelBase.metadata.create_all()` 方法
+   - 问题：运行 `alembic upgrade head` 时出现 `psycopg.errors.UndefinedTable: relation "transactions" does not exist` 或 `psycopg.errors.DuplicateColumn: column "transaction_id" of relation "transactions" already exists`
+   - 解决方法：采用了更高级的数据库初始化策略，先创建 alembic_version 表并标记最新迁移为已应用，然后再创建所有数据库表，避免运行实际迁移导致的冲突问题
 
 4. **数据库驱动错误**：
    - 问题：运行测试时出现 `ModuleNotFoundError: No module named 'psycopg2'`
