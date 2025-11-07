@@ -31,7 +31,7 @@
   - 运行测试并生成覆盖率报告
   - 上传覆盖率报告
 
-具体实现中，通过正确设置PYTHONPATH环境变量并直接在命令行中执行Python代码来初始化数据库表，确保Python可以找到app模块并避免模块导入错误
+具体实现中，通过正确设置PYTHONPATH环境变量（在数据库初始化和测试运行阶段）并直接在命令行中执行Python代码来初始化数据库表，确保Python可以找到app模块并避免模块导入错误
 
 #### 2. `build` 作业
 - 依赖：test 作业成功
@@ -62,7 +62,7 @@
 
 3. **数据库迁移错误**：
    - **问题**: 在GitHub Actions中出现`ModuleNotFoundError: No module named 'app'`错误
-  **解决方法**: 正确设置`PYTHONPATH=$PWD`环境变量，确保Python可以找到app模块，并通过命令行直接执行初始化代码
+  **解决方法**: 正确设置`PYTHONPATH=$PWD`环境变量，确保Python可以找到app模块，并在数据库初始化和测试运行阶段都应用此设置
 
 4. **数据库驱动错误**：
    - 问题：运行测试时出现 `ModuleNotFoundError: No module named 'psycopg2'`

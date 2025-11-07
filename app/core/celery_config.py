@@ -3,10 +3,24 @@ from app.core.config import settings
 import os
 
 # 创建Celery应用实例
+# 使用环境变量覆盖默认配置，优先使用localhost以支持本地测试
+broker_url = os.getenv("CELERY_BROKER_URL", settings.CELERY_BROKER_URL)
+result_backend = os.getenv("CELERY_RESULT_BACKEND", settings.CELERY_RESULT_BACKEND)
+
+# 如果环境变量未设置且默认URL包含"redis://redis"，则替换为localhost
+if "redis://redis" in broker_url:
+    broker_url = broker_url.replace("redis://redis", "redis://localhost")
+if "redis://redis" in result_backend:
+    result_backend = result_backend.replace("redis://redis", "redis://localhost")
+
+# 添加日志输出，查看实际使用的URL
+print(f"Celery使用的Broker URL: {broker_url}")
+print(f"Celery使用的Result Backend URL: {result_backend}")
+
 celery_app = Celery(
     "fastapi-ledger",
-    broker=settings.CELERY_BROKER_URL,
-    backend=settings.CELERY_RESULT_BACKEND,
+    broker=broker_url,
+    backend=result_backend,
     include=['app.tasks.celery_tasks'],
 )
 
