@@ -36,10 +36,35 @@ jobs:
         run: |
           python -m pip install -U pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov requests
-      - name: DB migrate (optional)
-        run: |
-          # 如你使用 Alembic：alembic upgrade head
-          echo "Run DB migrations if needed"
+      - name: DB migrate
+        run: alembic upgrade head
       - name: Run tests
         run: pytest -q --maxfail=1 --disable-warnings --cov=app
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .coverage
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false  # 不推送镜像
+          load: true   # 加载到本地以便后续使用
+          tags: fastapi-ledger:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Verify image build
+        run: echo "Docker image built successfully"
