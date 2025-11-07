@@ -26,9 +26,12 @@
   - 检出代码
   - 设置 Python 环境
   - 安装依赖
+  - 创建数据库表
   - 执行数据库迁移
   - 运行测试并生成覆盖率报告
   - 上传覆盖率报告
+
+具体实现中，在执行迁移前会先使用 SQLAlchemy 创建所有数据库表以避免迁移失败
 
 #### 2. `build` 作业
 - 依赖：test 作业成功
@@ -56,6 +59,14 @@
 2. **镜像构建失败**：
    - 检查 Dockerfile 是否有语法错误
    - 确认项目依赖是否都在 requirements.txt 中
+
+3. **数据库迁移错误**：
+   - 问题：运行 `alembic upgrade head` 时出现 `psycopg.errors.UndefinedTable: relation "transactions" does not exist`
+   - 解决方法：在运行迁移之前，确保已先创建所有数据库表，可使用 SQLAlchemy 的 `ModelBase.metadata.create_all()` 方法
+
+4. **数据库驱动错误**：
+   - 问题：运行测试时出现 `ModuleNotFoundError: No module named 'psycopg2'`
+   - 解决方法：在 CI 配置中将环境变量 `DATABASE_URL` 中的数据库驱动从 `psycopg2` 改为 `psycopg`，以匹配项目使用的 `psycopg[binary]` 依赖
 
 ## 最佳实践
 
