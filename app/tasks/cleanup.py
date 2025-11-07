@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import cleanup_logger as logger
 from app.db import models as M
-from app.db.session import get_db
+from app.db.db_session import get_db
 from app.domains.enums import FileStatus
 
 def _list_all_files(root: Path) -> Set[Path]:

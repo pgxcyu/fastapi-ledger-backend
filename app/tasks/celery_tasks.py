@@ -1,5 +1,5 @@
 from app.core.celery_config import celery_app
-from app.db.session import SessionLocal
+from app.db.db_session import SessionLocal
 from app.tasks.cleanup import cleanup_files as cleanup_files_func
 from app.tasks.export_reporter import export_transactions_by_user_func
 

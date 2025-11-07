@@ -3,62 +3,100 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: ledger-db
     environment:
-      POSTGRES_DB: fastapi-ledger
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 152183312
+      POSTGRES_DB: ${PG_DB}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi-ledger || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${PG_DB} || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: always
 
   redis:
     image: redis:7-alpine
-    container_name: ledger-redis
+    command: ["redis-server", "--save", "900 1", "--save", "300 10", "--save", "60 10000", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: always
 
   api:
     build: .
-    container_name: ledger-api
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file: ./.env
-    environment:
-      # 覆盖/补充 .env 中的变量（容器内互联用服务名）
-      DATABASE_URL: postgresql+psycopg://postgres:152183312@db:5432/fastapi-ledger
-      REDIS_URL: redis://redis:6379/0
+    env_file: .env
+    ports:
+      - "9000:9000"
     volumes:
-      - ./data/uploads:/code/app/static/upload_files
+      - logs:/code/logs
+      - static:/code/static
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/readyz || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/docs >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 10
-    expose:
-      - "9000"
+      retries: 12
+    restart: always
+
+  worker:
+    build: .
+    command: celery -A app.core.celery_config worker -l info
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    env_file: .env
+    restart: always
+
+  flower:
+    image: mher/flower
+    command: celery --broker=${CELERY_BROKER_URL} flower --port=5555
+    env_file: .env
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
 
   nginx:
     image: nginx:1.27-alpine
-    container_name: ledger-nginx
     depends_on:
-      api:
-        condition: service_started
+      - api
     ports:
       - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    restart: always
+    command: >
+      /bin/sh -c 
+      'echo "events {}" > /etc/nginx/nginx.conf && 
+       echo "http {" >> /etc/nginx/nginx.conf && 
+       echo "    server {" >> /etc/nginx/nginx.conf && 
+       echo "        listen 80;" >> /etc/nginx/nginx.conf && 
+       echo "        location / {" >> /etc/nginx/nginx.conf && 
+       echo "            proxy_pass http://api:9000;" >> /etc/nginx/nginx.conf && 
+       echo "        }" >> /etc/nginx/nginx.conf && 
+       echo "    }" >> /etc/nginx/nginx.conf && 
+       echo "}" >> /etc/nginx/nginx.conf && 
+       nginx -g "daemon off;"'
 
-networks:
-  default:
-    name: ledger-net
+volumes:
+  pgdata:
+  logs:
+  static:
+  redis_data:

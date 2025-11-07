@@ -22,8 +22,14 @@ class Settings(BaseSettings):
     SESSION_TTL_SECONDS: int = int(os.getenv("SESSION_TTL_SECONDS", "2592000"))  # 30 天
 
     # 数据库配置
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:152183312@127.0.0.1:5432/fastapi-ledger")
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/1")
+    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/2")
+
+    PG_USER: str = os.getenv("PG_USER", "postgres")
+    PG_PASSWORD: str = os.getenv("PG_PASSWORD", "152183312")
+    PG_DB: str = os.getenv("PG_DB", "fastapi-ledger")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", f"postgresql+psycopg://{PG_USER}:{PG_PASSWORD}@db:5432/{PG_DB}")
 
     # ====== Storage ======
     UPLOAD_DIR: str = os.path.join(BASE_DIR, "static/upload_files")

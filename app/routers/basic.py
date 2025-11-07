@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db.models import User
-from app.db.session import get_db
+from app.db.db_session import get_db
 from app.schemas.response import R
 from app.tasks.cleanup import cleanup_files
 from app.tasks.celery_tasks import cleanup_files_task

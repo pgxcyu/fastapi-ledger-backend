@@ -11,13 +11,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.deps import get_current_user, get_db
 from app.core.exceptions import BizException
-from app.core.idempotency import (
-    ensure_idempotency,
-    idem_done,
-    idem_unlock,
-)
+from app.core.idempotency import ensure_idempotency, idem_done, idem_unlock
 from app.core.signing import verify_signature
-from app.db.models import Fileassets, Transaction, User, UserSummary
+from app.db.models import Fileassets, Transaction, User, UserTransactionSummaryView
 from app.db.redis_session import get_redis_client
 from app.domains.enums import FileStatus
 from app.schemas.basic import PageResult
@@ -25,7 +21,7 @@ from app.schemas.response import R
 from app.schemas.transactions import (
     TransactionCreate,
     TransactionListQuery,
-    TransactionResponse
+    TransactionResponse,
 )
 from app.tasks.celery_tasks import export_transactions_by_user_task
 
@@ -148,18 +144,24 @@ def get_transactions(
     
     items = [TransactionResponse.model_validate(t) for t in rows]
 
-    summary = db.query(UserSummary).filter(UserSummary.userid == userid).first()
+    # 使用SQLAlchemy的Table对象查询视图
+    summary = db.query(UserTransactionSummaryView).filter(UserTransactionSummaryView.userid == userid).first()
+    
+    # 处理可能的None情况，并使用字典访问方式获取字段值
+    extras = {}
+    if summary:
+        extras = {
+            "total_transactions": summary.total_transactions,
+            "total_income": summary.total_income,
+            "total_expense": summary.total_expense,
+        }
     
     page = PageResult[TransactionResponse](
         page=form.page, 
         page_size=form.page_size, 
         items=items, 
         total=total,
-        extras={
-            "total_transactions": summary.total_transactions,
-            "total_income": summary.total_income,
-            "total_expense": summary.total_expense,
-        }
+        extras=extras
     )
 
     return R.ok(data=page)

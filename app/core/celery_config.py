@@ -5,8 +5,8 @@ import os
 # 创建Celery应用实例
 celery_app = Celery(
     "fastapi-ledger",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
+    broker=settings.CELERY_BROKER_URL,
+    backend=settings.CELERY_RESULT_BACKEND,
     include=['app.tasks.celery_tasks'],
 )
 
@@ -17,6 +17,10 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="Asia/Shanghai",
     enable_utc=True,
+    # 设置任务结果保留时间为7天（单位：秒）
+    result_expires=3600*24*7,
+    # 确保任务结果持久化保存
+    result_persistent=True,
     # 增加任务超时设置
     task_time_limit=3600,
     task_soft_time_limit=1800,

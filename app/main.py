@@ -24,9 +24,8 @@ from app.core.middleware import (
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
 )
-from app.db.init_db import init_db
+from app.db.db_session import get_db, init_db
 from app.db.redis_session import close_redis, init_redis
-from app.db.session import get_db
 from app.routers import auth, basic, system, transactions, videoserver
 from app.tasks.cleanup import cleanup_files
 

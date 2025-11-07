@@ -7,8 +7,8 @@ from app.core.exceptions import BizException
 from app.core.request_ctx import set_user_context
 from app.core.security import decode_token
 from app.core.session_store import get_active_sid, get_session_kv
+from app.db.db_session import get_db
 from app.db.models import User
-from app.db.session import get_db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

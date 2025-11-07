@@ -6,7 +6,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.domains.enums import FileStatus, TransactionType, UserStatus
 
-class Base(DeclarativeBase):
+class ModelBase(DeclarativeBase):
+    pass
+
+class ViewBase(DeclarativeBase):
     pass
 
 class TimestampMixin:
@@ -17,7 +20,7 @@ class TimestampMixin:
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )
 
-class User(Base, TimestampMixin):
+class User(ModelBase, TimestampMixin):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     userid: Mapped[str] = mapped_column(String(32), unique=True, index=True, default=lambda: uuid4().hex)
@@ -25,14 +28,14 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255))
     status: Mapped[UserStatus] = mapped_column(SqlEnum(UserStatus), default=UserStatus.ACTIVE, nullable=False)
 
-class Logger(Base, TimestampMixin):
+class Logger(ModelBase, TimestampMixin):
     __tablename__ = "loggers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     userid: Mapped[str] = mapped_column(String(32), index=True)
     action: Mapped[str] = mapped_column(String(255))
     info: Mapped[str] = mapped_column(String(1000))  # 增加长度限制以存储更多的JSON数据
 
-class Transaction(Base, TimestampMixin):
+class Transaction(ModelBase, TimestampMixin):
     __tablename__ = "transactions"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     transaction_id: Mapped[str] = mapped_column(String(32), unique=True, index=True, default=lambda: uuid4().hex)
@@ -42,7 +45,7 @@ class Transaction(Base, TimestampMixin):
     type: Mapped[TransactionType] = mapped_column(SqlEnum(TransactionType))
     remark: Mapped[str] = mapped_column(String(255), nullable=True)
 
-class Fileassets(Base, TimestampMixin):
+class Fileassets(ModelBase, TimestampMixin):
     __tablename__ = "fileassets"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     fileid: Mapped[str] = mapped_column(String(32), unique=True, index=True, default=lambda: uuid4().hex)
@@ -54,11 +57,12 @@ class Fileassets(Base, TimestampMixin):
     status: Mapped[FileStatus] = mapped_column(SqlEnum(FileStatus), default=FileStatus.ACTIVE, nullable=False)
     update_userid: Mapped[str] = mapped_column(String(32), nullable=True)
 
-class UserSummary(Base):
+# 定义用户交易摘要视图
+class UserTransactionSummaryView(ViewBase):
     __tablename__ = "user_transaction_summary"
     __table_args__ = {"info": {"is_view": True}}
     userid: Mapped[str] = mapped_column(String(32), primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(50), index=True)
-    total_transactions: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
-    total_income: Mapped[float] = mapped_column(Integer, default=0, nullable=True)
-    total_expense: Mapped[float] = mapped_column(Integer, default=0, nullable=True)
+    total_transactions: Mapped[int] = mapped_column(Integer, default=0)
+    total_income: Mapped[int] = mapped_column(Integer, default=0)
+    total_expense: Mapped[int] = mapped_column(Integer, default=0)

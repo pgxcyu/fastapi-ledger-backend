@@ -40,7 +40,7 @@ from app.core.session_store import (
     set_session_kv,
 )
 from app.db.models import Logger, User
-from app.db.session import get_db
+from app.db.db_session import get_db
 from app.schemas.auth import LoginModel, RegisterIn, TokenWithRefresh, UserOut
 from app.schemas.response import R
 

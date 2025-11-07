@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.redis_session import get_redis_client
-from app.db.session import get_db
+from app.db.db_session import get_db
 from app.schemas.response import R
 from app.core.deps import get_current_user
 from app.core.request_ctx import get_request_id, get_user_context
