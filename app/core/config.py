@@ -49,9 +49,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_TO_CONSOLE: bool = bool(int(os.getenv("LOG_TO_CONSOLE", "0")))
 
-    # SM2 非登录密钥
-    SM2_PRIVATE_KEY_NOLOGIN: str = os.getenv("SM2_PRIVATE_KEY_NOLOGIN")
-    SM2_PUBLIC_KEY_NOLOGIN: str = os.getenv("SM2_PUBLIC_KEY_NOLOGIN")
+    # SM2 非登录密钥 - 添加默认值以支持CI环境
+    SM2_PRIVATE_KEY_NOLOGIN: str = os.getenv("SM2_PRIVATE_KEY_NOLOGIN", "test_default_private_key")
+    SM2_PUBLIC_KEY_NOLOGIN: str = os.getenv("SM2_PUBLIC_KEY_NOLOGIN", "test_default_public_key")
 
 # 创建全局 settings 实例
 settings = Settings()
