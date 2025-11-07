@@ -38,10 +38,10 @@ jobs:
           pip install -r requirements.txt
       - name: Create database tables directly
         run: |
-          # Create a simple Python script to initialize the database
-          echo "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets, Logger; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')" > init_db.py
-          # Run the initialization script
-          python app/db/db_session.py
+          # Set PYTHONPATH to ensure Python can find the app module
+          export PYTHONPATH=$PWD
+          # Initialize database directly without creating a temporary file
+          python -c "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets, Logger; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')"
       - name: Run tests
         run: pytest -q --maxfail=1 --disable-warnings --cov=app
       - name: Upload test coverage

@@ -31,7 +31,7 @@
   - 运行测试并生成覆盖率报告
   - 上传覆盖率报告
 
-具体实现中，通过创建临时Python脚本来初始化数据库表，避免复杂的单行Python语句在GitHub Actions中可能导致的语法错误问题
+具体实现中，通过正确设置PYTHONPATH环境变量并直接在命令行中执行Python代码来初始化数据库表，确保Python可以找到app模块并避免模块导入错误
 
 #### 2. `build` 作业
 - 依赖：test 作业成功
@@ -61,8 +61,8 @@
    - 确认项目依赖是否都在 requirements.txt 中
 
 3. **数据库迁移错误**：
-   - **问题**: 在GitHub Actions中执行复杂的单行Python语句时出现语法错误
-  **解决方法**: 通过创建临时Python脚本文件来执行数据库初始化，避免了复杂单行命令的语法问题
+   - **问题**: 在GitHub Actions中出现`ModuleNotFoundError: No module named 'app'`错误
+  **解决方法**: 正确设置`PYTHONPATH=$PWD`环境变量，确保Python可以找到app模块，并通过命令行直接执行初始化代码
 
 4. **数据库驱动错误**：
    - 问题：运行测试时出现 `ModuleNotFoundError: No module named 'psycopg2'`
