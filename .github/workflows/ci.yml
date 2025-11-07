@@ -22,7 +22,7 @@ jobs:
           --health-cmd="pg_isready -U ledger_user -d ledger_test"
           --health-interval=10s --health-timeout=5s --health-retries=10
     env:
-      DATABASE_URL: postgresql+psycopg2://ledger_user:ledger_pass@localhost:5432/ledger_test
+      DATABASE_URL: postgresql+psycopg://ledger_user:ledger_pass@localhost:5432/ledger_test
       REDIS_URL: redis://localhost:6379/0
       LOG_LEVEL: INFO
       SECRET_KEY: testsecret
