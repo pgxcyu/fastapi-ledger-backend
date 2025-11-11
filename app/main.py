@@ -1,3 +1,5 @@
+import os
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
@@ -5,9 +7,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi_limiter import FastAPILimiter
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.exception_handlers import (
@@ -28,8 +32,6 @@ from app.db.db_session import get_db, init_db
 from app.db.redis_session import close_redis, init_redis
 from app.routers import auth, basic, system, transactions, videoserver
 from app.tasks.cleanup import cleanup_files
-
-from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 app = FastAPI(title="FastAPI Ledger (Kickoff)")
 
@@ -138,7 +140,14 @@ async def shutdown_event():
 #     )
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# 安全地挂载静态文件目录，避免因目录不存在导致的错误
+
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+else:
+    # 在开发环境记录日志，在生产/CI环境静默处理
+    import logging
+    logging.getLogger("uvicorn").info("静态文件目录 'static' 不存在，跳过挂载")
 
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
