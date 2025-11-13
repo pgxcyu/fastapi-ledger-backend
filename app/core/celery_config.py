@@ -1,6 +1,9 @@
-from celery import Celery
-from app.core.config import settings
 import os
+
+from celery import Celery
+from celery.schedules import crontab
+
+from app.core.config import settings
 
 # 创建Celery应用实例
 # 使用环境变量覆盖默认配置，优先使用localhost以支持本地测试
@@ -24,6 +27,33 @@ celery_app = Celery(
     include=['app.tasks.celery_tasks'],
 )
 
+# 辅助函数：从字符串解析crontab表达式
+def crontab_from_string(cron_string):
+    """将cron字符串(如 '30 3 * * *') 转换为Celery的crontab对象"""
+    parts = cron_string.split()
+    if len(parts) != 5:
+        raise ValueError(f"无效的cron表达式: {cron_string}")
+    return crontab(
+        minute=parts[0],
+        hour=parts[1],
+        day_of_month=parts[2],
+        month_of_year=parts[3],
+        day_of_week=parts[4]
+    )
+
+celery_app.conf.beat_schedule = {
+    'cleanup-files-daily': {
+        'task': 'app.tasks.celery_tasks.cleanup_files_task',
+        'schedule': crontab_from_string(settings.CLEANUP_CRON),
+        'args': (False,),  # 不使用dry_run模式
+    },
+}
+
+
+# 日志配置 - 确保Celery日志写入到项目日志目录
+beat_log_path = os.path.join(settings.LOG_DIR, 'celery-beat.log')
+worker_log_path = os.path.join(settings.LOG_DIR, 'celery-worker.log')
+
 # 其他配置
 celery_app.conf.update(
     task_serializer="json",
@@ -46,4 +76,15 @@ celery_app.conf.update(
     broker_connection_timeout=30,
     broker_connection_retry=True,
     broker_connection_retry_on_startup=True,
+    # 日志配置
+    worker_log_format="%(asctime)s - %(levelname)s - [%(processName)s:%(process)d] %(message)s",
+    worker_task_log_format="%(asctime)s - %(levelname)s - [%(processName)s:%(process)d][%(task_name)s(%(task_id)s)] %(message)s",
+    beat_log_format="%(asctime)s - %(levelname)s - [%(processName)s:%(process)d] %(message)s",
+    # 确保日志级别与项目配置一致
+    worker_log_level=settings.LOG_LEVEL.lower(),
+    beat_log_level=settings.LOG_LEVEL.lower(),
+    # Beat选项
+    beat_max_loop_interval=15,  # 最大循环间隔（秒），避免CPU占用过高
+    beat_scheduler='celery.beat.PersistentScheduler',
+    beat_schedule_filename='celerybeat-schedule.db',  # 存储最后一次执行时间的文件
 )

@@ -17,6 +17,9 @@ static/
 *.sqlite3
 app.db
 
+# Docker
+.volumes/
+
 # Environment variables
 .env
 .env.local

@@ -24,7 +24,6 @@ class TransactionCreate(BaseModel):
 
 
 class TransactionResponse(BaseModel):
-    id: int
     transaction_id: str
     create_userid: str
     create_username: Optional[str] = None

@@ -1,0 +1,63 @@
+# Docker Compose 基本服务配置文件
+# 只包含核心服务：数据库、Redis和API
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PG_DB}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_PORT: ${PG_PORT}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${PG_DB} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "900 1", "--save", "300 10", "--save", "60 10000", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: always
+    networks:
+      default:
+        aliases:
+          - redis
+
+  # api:
+  #   build: .
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   env_file: .env
+  #   ports:
+  #     - "9000:9000"
+  #   volumes:
+  #     - logs:/code/logs
+  #     - static:/code/static
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -fsS http://localhost:9000/system/readyz >/dev/null || exit 1"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 12
+  #   restart: always
+
+volumes:
+  pgdata:
+  redis_data:

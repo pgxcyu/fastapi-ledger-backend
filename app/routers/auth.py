@@ -39,8 +39,8 @@ from app.core.session_store import (
     set_active_sid,
     set_session_kv,
 )
-from app.db.models import Logger, User
 from app.db.db_session import get_db
+from app.db.models import Logger, Role, User, UserRole, Menu, RoleMenu, Button, RoleButton
 from app.schemas.auth import LoginModel, RegisterIn, TokenWithRefresh, UserOut
 from app.schemas.response import R
 
@@ -212,8 +212,23 @@ async def logout(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/me", response_model=R[UserOut])
-async def me(current_user: User = Depends(get_current_user), sm2_client = Depends(get_sm2_client)):
-    return R.ok(data={
-        "userid": current_user.userid,
-        "username": sm2_encrypt_hex(sm2_client, current_user.username),
-    })
+async def me(current_user: User = Depends(get_current_user)):
+    try:
+        user_out = UserOut(
+            userid=current_user.userid,
+            username=current_user.username,
+        )
+
+        return R.ok(data=user_out)
+    except Exception:
+        raise BizException(code=422, message="响应模型验证错误")
+
+
+@router.get("/getMenus", response_model=R)
+async def get_menus(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """获取当前登录用户的菜单权限"""
+    roleinfo = db.query(UserRole).join(Role, UserRole.role_id == Role.role_id).filter(UserRole.userid == current_user.userid).first()
+    if not roleinfo:
+        return R.ok(data=[])
+
+    return R.ok(message="获取成功")

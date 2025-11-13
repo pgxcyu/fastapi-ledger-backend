@@ -1,51 +1,88 @@
-# FastAPI 核心
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
+# FastAPI 核心 - 使用较新且稳定的版本
+fastapi>=0.110.0,<0.120.0
+uvicorn[standard]>=0.29.0,<0.31.0
 
-# ORM & 数据库
-SQLAlchemy==2.0.36
-redis==5.0.1
-alembic==1.13.2
-psycopg[binary]==3.2.12
-aiosqlite==0.20.0
+# ORM & 数据库 - 保持稳定版本
+SQLAlchemy>=2.0.30,<2.1.0
+redis>=5.0.0,<6.0.0
+alembic>=1.13.0,<1.14.0
+psycopg[binary]>=3.2.0,<3.3.0
+aiosqlite>=0.19.0,<0.21.0
 
-# 安全 / JWT / 密码
+# 安全 / JWT / 密码 - 更新部分版本
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
-python-jose[cryptography]==3.3.0
-fastapi-limiter==0.1.6
-gmssl==3.2.2
+python-jose[cryptography]>=3.3.0,<4.0.0
+fastapi-limiter>=0.1.6,<0.2.0
+# gmssl - 国密算法支持
+gmssl>=3.2.2,<4.0.0
 
-# 其它
-celery==5.5.0
-flower==1.2.0
-eventlet==0.36.1
-APScheduler==3.10.4
-tzdata==2025.2
-tzlocal==5.2
-python-multipart==0.0.20
-starlette==0.38.6
-numpy==1.26.4
-pandas==2.2.3
-requests==2.32.3
-prometheus-fastapi-instrumentator==7.0.0
+# 任务队列和调度
+celery>=5.5.0,<6.0.0
+flower>=1.2.0,<1.3.0
+eventlet>=0.36.0,<0.37.0
+APScheduler>=3.10.0,<3.11.0
 
-# Pydantic (FastAPI 用于数据校验)
-pydantic==2.9.1
-pydantic_settings==2.4.0
+# 日期和时间
+tzdata>=2025.0
+# tzlocal由pandas自动依赖，无需单独指定
 
-# 视频处理库
-opencv-python==4.10.0.84
+# 数据处理 - 使用最新稳定的预编译版本
+numpy>=2.3.0,<2.4.0
+pandas>=2.3.0,<2.4.0
 
-# 可选：环境变量配置
-python-dotenv==1.0.1
+# HTTP和数据交互
+python-multipart>=0.0.16,<0.0.21
+requests>=2.32.0,<3.0.0
+
+# 监控
+prometheus-fastapi-instrumentator>=7.0.0,<8.0.0
+
+# Pydantic - 数据验证和设置管理
+# 使用最新兼容版本，避免版本不兼容问题
+pydantic>=2.9.1
+pydantic_settings>=2.4.0
+
+# 视频处理库 - 使用预编译版本
+opencv-python-headless>=4.10.0,<4.11.0  # headless版本不依赖GUI，更轻量
+
+# 环境变量配置
+python-dotenv>=1.0.0,<2.0.0
 
 # 日志
-loguru==0.7.2
+loguru>=0.7.0,<0.8.0
 
-# 测试相关
-pytest==8.3.3
-pytest-cov==5.0.0
-pytest-asyncio==0.24.0
-httpx==0.27.0
-tqdm==4.66.5
+# 测试相关 - 开发依赖
+pytest>=8.0.0,<9.0.0
+pytest-cov>=5.0.0,<6.0.0
+pytest-asyncio>=0.23.0,<0.25.0
+httpx>=0.27.0,<0.28.0
+tqdm>=4.66.0,<5.0.0
+
+# Windows环境下无法一次性安装的原因：
+# 1. 缺少C/C++编译器 - numpy、pandas等包在Windows下需要编译环境
+# 2. 版本兼容性问题 - 某些指定版本可能没有Windows预编译二进制包
+# 3. 依赖冲突 - 不同包之间的依赖关系复杂，一次性解析可能失败
+# 4. 安装顺序影响 - 某些包需要先安装其依赖才能正确安装
+
+# 推荐安装方法：
+# 1. 使用提供的分阶段安装脚本（推荐）：
+#    .\install_deps.ps1
+# 
+# 2. 手动分批次安装（如脚本无法执行）：
+#    a. 升级pip: pip install --upgrade pip
+#    b. 分阶段安装（参见install_deps.ps1中的安装顺序）
+#    c. 对numpy/pandas/pydantic等使用--only-binary选项
+# 
+# 3. 开发环境建议：
+#    python -m venv .venv
+#    .venv\Scripts\activate  # Windows
+#    .\install_deps.ps1
+# 
+# 4. 生产环境强烈建议使用Docker部署，避免环境差异问题
+#    docker-compose up --build
+
+# 故障排除：
+# - 如果遇到编译错误，使用--prefer-binary或--only-binary选项
+# - 如果版本不兼容，尝试移除版本限制或使用不同的版本范围
+# - 如果仍然失败，可以尝试安装编译工具：Microsoft Build Tools或MinGW

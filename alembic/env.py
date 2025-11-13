@@ -7,10 +7,6 @@ from alembic import context
 from app.core.config import settings
 from app.db.models import ModelBase  # 确保这里导入的是所有模型的 Base
 
-# 关键2：**强制导入所有模型模块**，否则 autogenerate 检测不到
-# 例如：
-from app.db.models import User, Transaction, Fileassets, Logger
-
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

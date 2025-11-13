@@ -74,3 +74,20 @@ status:
 clean:
 	docker system prune -f
 	docker volume prune -f
+
+# 开发启动项目
+run:
+	uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload
+
+# 启动基础服务
+up-b:
+	docker compose -f docker-compose-basic.yml up --build -d
+
+start-b:
+	docker compose -f docker-compose-basic.yml up -d
+
+down-b:
+	docker compose -f docker-compose-basic.yml down
+
+install-r:
+	pip install -r requirements.txt

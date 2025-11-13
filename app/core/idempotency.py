@@ -114,7 +114,7 @@ async def idem_unlock(request: Request):
             pass
 
 
-# 兼容你原来的保存函数（保留但不推荐只用它）
+# 兼容原来的保存函数（保留但不推荐只用它）
 async def save_idempotency_response(request: Request, response_obj):
     # 等价 done(…, 200)
     await idem_done(request, response_obj, status_code=200)

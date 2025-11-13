@@ -16,3 +16,8 @@ class FileStatus(str, Enum):
     QUARANTINE = "quarantine"
     DELETED = "deleted"
     MISSING = "missing"
+
+class MenuType(str, Enum):
+    GRID = "grid"
+    LIST = "list"
+    CHART = "chart"

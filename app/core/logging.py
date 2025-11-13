@@ -76,6 +76,7 @@ def setup_logging():
         enqueue=enqueue,
         filter=app_filter,
         serialize=True,
+        delay=True,  # 延迟文件创建，直到第一次写入时才打开文件
     )
     
     # 配置错误日志（ERROR+）
@@ -90,6 +91,7 @@ def setup_logging():
         enqueue=enqueue,
         filter=app_filter,
         serialize=True,
+        delay=True,
     )
     
     # 配置访问日志（INFO+）- 只包含访问日志
@@ -104,6 +106,7 @@ def setup_logging():
         enqueue=enqueue,
         filter=access_filter,
         serialize=True,
+        delay=True,
     )
     
     # 控制台日志（开发环境）
@@ -133,9 +136,24 @@ def setup_logging():
     # —— 接管标准 logging（uvicorn/fastapi/sqlalchemy 等）——
     logging.root.handlers = [InterceptHandler()]
     logging.root.setLevel(logging.INFO)
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi", "sqlalchemy", "alembic", "apscheduler", "celery", "celery.task", "celery.worker", "websockets"):
-        logging.getLogger(name).handlers = [InterceptHandler()]
-        logging.getLogger(name).propagate = False
+    # 扩展日志器名称列表，确保覆盖所有Celery相关日志
+    celery_loggers = [
+        "celery", "celery.task", "celery.worker", "celery.beat", 
+        "celery.app.trace", "celery.worker.consumer", "celery.worker.strategy"
+    ]
+    other_loggers = [
+        "uvicorn", "uvicorn.error", "uvicorn.access", "fastapi", 
+        "sqlalchemy", "alembic", "apscheduler", "websockets"
+    ]
+    
+    # 配置所有日志器
+    for name in celery_loggers + other_loggers:
+        logger_instance = logging.getLogger(name)
+        logger_instance.handlers = [InterceptHandler()]
+        logger_instance.propagate = False
+        # 为Celery相关日志设置适当的日志级别
+        if name in celery_loggers:
+            logger_instance.setLevel(getattr(logging, level_name))
 
 # 为了兼容现有代码，提供get_logger函数
 def get_logger(name: str = None) -> logger:

@@ -1,7 +1,5 @@
 import os
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,10 +8,7 @@ from fastapi_limiter import FastAPILimiter
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.staticfiles import StaticFiles
 
-from app.core.config import settings
 from app.core.exception_handlers import (
     biz_exception_handler,
     http_exception_handler,
@@ -28,10 +23,9 @@ from app.core.middleware import (
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
 )
-from app.db.db_session import get_db, init_db
+from app.db.db_session import init_db
 from app.db.redis_session import close_redis, init_redis
 from app.routers import auth, basic, system, transactions, videoserver
-from app.tasks.cleanup import cleanup_files
 
 app = FastAPI(title="FastAPI Ledger (Kickoff)")
 
@@ -56,16 +50,6 @@ app.add_exception_handler(ValidationError, validation_exception_handler)
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
-scheduler = AsyncIOScheduler()
-
-async def run_cleanup_job(dry_run: bool = False):
-    db = next(get_db())
-    try:
-        cleanup_files(db, dry_run=dry_run)
-    finally:
-        db.close()
-
-
 def setup_prometheus():
     print("[DEBUG] 正在配置 Prometheus 监控...")
     try:
@@ -83,7 +67,7 @@ def setup_prometheus():
         import traceback
         traceback.print_exc()
     
-setup_prometheus()
+# setup_prometheus()
 
 @app.on_event("startup")
 async def startup_event():
@@ -97,22 +81,12 @@ async def startup_event():
     except Exception as e:
         print(f"Warning: Failed to initialize Redis or FastAPILimiter: {e}")
     
-    scheduler.add_job(
-        run_cleanup_job,
-        CronTrigger.from_crontab(settings.CLEANUP_CRON),
-        id="cleanup_files",
-        name="清理孤立文件",
-        replace_existing=True,
-    )
-    # scheduler.start()
+    # 文件清理任务已迁移到Celery Beat管理，不再使用APScheduler
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await FastAPILimiter.close()
     await close_redis()
-
-    if scheduler.running:
-        scheduler.shutdown()
 
 
 # @app.get("/docs", include_in_schema=False)
@@ -140,15 +114,9 @@ async def shutdown_event():
 #     )
 
 
-# 安全地挂载静态文件目录，避免因目录不存在导致的错误
-
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-else:
-    # 在开发环境记录日志，在生产/CI环境静默处理
-    import logging
-    logging.getLogger("uvicorn").info("静态文件目录 'static' 不存在，跳过挂载")
-
+STATIC_DIR = os.path.join("static")   # 指向 /static
+os.makedirs(STATIC_DIR, exist_ok=True)   # 没有就创建（CI 下也安全）
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(transactions.router, prefix="/transactions", tags=["transactions"])

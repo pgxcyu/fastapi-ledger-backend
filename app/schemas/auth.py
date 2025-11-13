@@ -1,3 +1,4 @@
+from time import strptime
 from pydantic import BaseModel, Field
 from typing_extensions import Optional
 
