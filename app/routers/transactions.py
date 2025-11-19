@@ -9,6 +9,7 @@ from fastapi_limiter.depends import RateLimiter
 from sqlalchemy.orm import Session
 
 from app.core.audit import audit_log
+from app.core.audit import OperationType, RiskLevel, audit_transaction
 from app.core.config import settings
 from app.core.deps import get_current_user, get_db, require_code
 from app.core.exceptions import BizException
@@ -25,7 +26,6 @@ from app.schemas.transactions import (
     TransactionResponse,
 )
 from app.tasks.celery_tasks import export_transactions_by_user_task
-from app.core.audit import audit_transaction
 
 
 router = APIRouter()
@@ -209,17 +209,45 @@ async def get_transaction_detail(
     
     return R.ok(data=transaction_response)
 
+def get_tx_delete_before_data(
+    request: Request,
+    transaction_id: str,
+    db: Session,
+    **kwargs,
+):
+    """
+    删除前，把被删记录的关键信息保留下来
+    """
+    tx = db.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+    if not tx:
+        return None
+    return {
+        "transaction_id": tx.transaction_id,
+        "amount": tx.amount,
+        "type": tx.type,
+        "remark": tx.remark,
+        "create_userid": tx.create_userid,
+    }
+
 
 @router.post("/deleteRecord", response_model=R, description="删除交易记录", dependencies=[Depends(require_code("bill:delete"))])
-@audit_transaction(operation_description="删除交易记录", operation_type="delete")
+@audit_transaction(
+    "删除交易记录",
+    operation_type=OperationType.DELETE,
+    get_resource_id=lambda request, transaction_id, **kwargs: transaction_id,
+    get_before_data=get_tx_delete_before_data,
+    # 删除后通常不用记录 after_data（已经没了）
+    risk_level=RiskLevel.HIGH,
+    sensitive_flag=True,
+    strict_require_db=True,
+)
 async def delete_transaction(
     request: Request,
+    transaction_id: str = Body(..., embed=True),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     redis_client = Depends(get_redis_client)
 ):
-    data = await request.json()
-    transaction_id = data.get("transaction_id")
     if not transaction_id:
         raise BizException(message="交易记录ID不能为空")
 

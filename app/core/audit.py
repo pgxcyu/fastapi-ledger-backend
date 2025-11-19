@@ -1,9 +1,10 @@
 # app/core/audit.py
 import functools
 from functools import wraps
+import json
 import time
 import traceback
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional, Union
 
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -19,9 +20,28 @@ from app.core.audit_service import (
     audit_service,
 )
 from app.core.deps import get_db
+from app.core.logging import logger
 from app.core.request_ctx import get_request_id
 from app.db.models import AuditLog
 
+audit_logger = logger.bind(module="audit")
+
+# 类型别名
+Handler = Callable[..., Awaitable[Any]]
+GetDataFunc = Callable[..., Any]
+
+
+async def _call_maybe_async(func: Optional[GetDataFunc], *args, **kwargs) -> Any:
+    if not func:
+        return None
+    try:
+        value = func(*args, **kwargs)
+        if inspect.isawaitable(value):
+            value = await value
+        return value
+    except Exception as e:
+        audit_logger.debug(f"audit get_data func error: {e}")
+        return None
 
 
 def audit_log(
@@ -35,7 +55,10 @@ def audit_log(
     get_resource_id: Optional[Callable] = None,
     get_before_data: Optional[Callable] = None,
     get_after_data: Optional[Callable] = None,
-    business_context: Optional[str] = None
+    business_context: Optional[str] = None,
+    *,
+    strict_require_db: bool = True,
+    use_separate_session: bool = False,
 ):
     """
     审计日志装饰器
@@ -52,39 +75,26 @@ def audit_log(
         get_before_data: 获取操作前数据的函数
         get_after_data: 获取操作后数据的函数
         business_context: 业务上下文描述
+        strict_require_db: 是否强制要求 db 参数（推荐 True；如果老代码较多，可先设 False 过渡）
+        use_separate_session: 是否将审计写入独立 Session（不影响当前事务）
     """
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Handler) -> Handler:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            # 获取请求对象
-            request = None
-            db = None
-            current_user = None
-            
-            # 从参数中提取关键对象
-            for arg in args:
-                if isinstance(arg, Request):
-                    request = arg
-                elif hasattr(arg, 'query'):  # Session 对象
-                    db = arg
-                    
-            for key, value in kwargs.items():
-                if key == 'request' and isinstance(value, Request):
-                    request = value
-                elif key == 'db' and hasattr(value, 'query'):
-                    db = value
-                elif key == 'current_user':
-                    current_user = value
-            
-            # 如果没有db，尝试获取
-            if db is None:
-                try:
-                    db = next(get_db())
-                except:
-                    pass
+            # 1. 提取关键对象
+            request: Optional[Request] = kwargs.get("request")
+            db: Optional[Session] = kwargs.get("db")
+            current_user = kwargs.get("current_user")
+
+            if strict_require_db and db is None and not use_separate_session:
+                # 强制约束：有审计就应该有 db（否则使用独立 Session）
+                audit_logger.warning(
+                    f"[audit_log] {func.__name__} 没有显式 db 参数，"
+                    f"建议在路由中加 db: Session = Depends(get_db)"
+                )
             
             # 准备基础审计数据
-            audit_data = audit_service.prepare_basic_audit_data(
+            audit_data: Dict[str, Any] = audit_service.prepare_basic_audit_data(
                 operation_description=operation_description,
                 operation_type=operation_type,
                 resource_type=resource_type,
@@ -107,63 +117,74 @@ def audit_log(
             if request_id:
                 audit_data['request_id'] = request_id
             
-            # 获取资源ID
-            if get_resource_id:
-                try:
-                    resource_id = get_resource_id(*args, **kwargs)
-                    audit_data['resource_id'] = resource_id
-                except:
-                    pass
+            # 资源 ID
+            resource_id = await _call_maybe_async(get_resource_id, *args, **kwargs)
+            if resource_id is not None:
+                audit_data["resource_id"] = resource_id
+
+            # 操作前数据
+            before_data = await _call_maybe_async(get_before_data, *args, **kwargs)
+            if before_data is not None:
+                audit_data["before_data"] = audit_service.serialize_data(before_data)
             
-            # 获取操作前数据
-            if get_before_data:
-                try:
-                    before_data = get_before_data(*args, **kwargs)
-                    if before_data:
-                        audit_data['before_data'] = json.dumps(before_data, ensure_ascii=False) if not isinstance(before_data, str) else before_data
-                except:
-                    pass
-            
-            # 执行原函数
+            # 3. 执行业务函数
             try:
                 result = await func(*args, **kwargs)
-                
-                # 获取操作后数据
-                if get_after_data:
-                    try:
-                        after_data = get_after_data(*args, **kwargs, result=result)
-                        if after_data:
-                            audit_data['after_data'] = json.dumps(after_data, ensure_ascii=False) if not isinstance(after_data, str) else after_data
-                    except:
-                        pass
-                
-                # 记录成功的审计日志
-                audit_service.save_audit_log(db, audit_data)
-                
-                return result
-                
             except Exception as e:
-                # 记录失败的审计日志
-                audit_data['operation_result'] = AuditResult.FAILURE
-                audit_data['business_context'] = f"{business_context or ''} - Error: {str(e)}"
-                audit_service.save_audit_log(db, audit_data)
+                # 失败场景审计
+                audit_data["operation_result"] = AuditResult.FAILURE
+                audit_data["audit_level"] = AuditLevel.ERROR
+                audit_data["error_message"] = str(e)
+
+                # 失败时可附加上下文
+                if business_context:
+                    audit_data["business_context"] = f"{business_context} | Error: {e}"
+                else:
+                    audit_data["business_context"] = f"Error: {e}"
+
+                audit_service.save_audit_log(
+                    db, audit_data, use_separate_session=use_separate_session
+                )
                 raise
+
+            # 4. 成功场景追加 after_data
+            after_data = await _call_maybe_async(get_after_data, *args, **kwargs, result=result)
+            if after_data is not None:
+                audit_data["after_data"] = audit_service.serialize_data(after_data)
+            
+            audit_data["operation_result"] = AuditResult.SUCCESS
+            audit_service.save_audit_log(
+                db, audit_data, use_separate_session=use_separate_session
+            )
+
+            return result
                 
         return wrapper
     return decorator
 
 # 便捷的审计装饰器
-def audit_transaction(operation_description: str, operation_type: str = OperationType.READ):
+def audit_transaction(
+    operation_description: str, 
+    operation_type: str = OperationType.READ, 
+    get_resource_id: Optional[Callable] = None,
+    **kwargs
+):
     """交易操作审计"""
+    # 如果没有提供 get_resource_id，使用默认的
+    if get_resource_id is None:
+        get_resource_id = lambda *args, **kw: kw.get("transaction_id") or getattr(kw.get("transaction", ""), "transaction_id", None)
+    
     return audit_log(
         operation_description=operation_description,
         operation_type=operation_type,
         resource_type=ResourceType.TRANSACTION,
         operation_module="TRANSACTION",
-        get_resource_id=lambda *args, **kwargs: kwargs.get('transaction_id') or getattr(kwargs.get('transaction', ''), 'transaction_id', None)
+        get_resource_id=get_resource_id,
+        **kwargs,
     )
 
-def audit_user(operation_description: str, operation_type: str = OperationType.READ):
+
+def audit_user(operation_description: str, operation_type: str = OperationType.READ, **kwargs):
     """用户操作审计"""
     return audit_log(
         operation_description=operation_description,
@@ -171,10 +192,12 @@ def audit_user(operation_description: str, operation_type: str = OperationType.R
         resource_type=ResourceType.USER,
         operation_module="USER",
         risk_level=RiskLevel.MEDIUM,
-        sensitive_flag=True
+        sensitive_flag=True,
+        **kwargs,
     )
 
-def audit_login(operation_description: str):
+
+def audit_login(operation_description: str, **kwargs):
     """登录操作审计"""
     return audit_log(
         operation_description=operation_description,
@@ -182,10 +205,17 @@ def audit_login(operation_description: str):
         resource_type=ResourceType.USER,
         operation_module="AUTH",
         audit_level=AuditLevel.INFO,
-        risk_level=RiskLevel.MEDIUM
+        risk_level=RiskLevel.MEDIUM,
+        sensitive_flag=True,
+        **kwargs,
     )
 
-def audit_sensitive(operation_description: str, operation_type: str = OperationType.UPDATE):
+
+def audit_sensitive(
+    operation_description: str,
+    operation_type: str = OperationType.UPDATE,
+    **kwargs,
+):
     """敏感操作审计"""
     return audit_log(
         operation_description=operation_description,
@@ -193,5 +223,6 @@ def audit_sensitive(operation_description: str, operation_type: str = OperationT
         operation_module="SECURITY",
         audit_level=AuditLevel.WARNING,
         risk_level=RiskLevel.HIGH,
-        sensitive_flag=True
+        sensitive_flag=True,
+        **kwargs,
     )

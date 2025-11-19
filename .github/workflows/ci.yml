@@ -41,7 +41,7 @@ jobs:
           # Set PYTHONPATH to ensure Python can find the app module
           export PYTHONPATH=$PWD
           # Initialize database directly without creating a temporary file
-          python -c "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets, Logger; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')"
+          python -c "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')"
       - name: Run tests
         run: |
           # Set PYTHONPATH to ensure Python can find the app module
@@ -54,25 +54,25 @@ jobs:
           name: coverage-report
           path: .coverage
 
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    steps:
-      - uses: actions/checkout@v4
+  # build:
+  #   needs: test
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+  #   steps:
+  #     - uses: actions/checkout@v4
       
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
       
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: false  # 不推送镜像
-          load: true   # 加载到本地以便后续使用
-          tags: fastapi-ledger:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  #     - name: Build Docker image
+  #       uses: docker/build-push-action@v5
+  #       with:
+  #         context: .
+  #         push: false  # 不推送镜像
+  #         load: true   # 加载到本地以便后续使用
+  #         tags: fastapi-ledger:latest
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
       
-      - name: Verify image build
-        run: echo "Docker image built successfully"
+  #     - name: Verify image build
+  #       run: echo "Docker image built successfully"

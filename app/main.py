@@ -44,7 +44,7 @@ app.add_middleware(
 # app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AuthenticationMiddleware)
 app.add_middleware(RequestContextMiddleware)
-app.add_middleware(AuditMiddleware)
+# app.add_middleware(AuditMiddleware)
 
 app.add_exception_handler(BizException, biz_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
