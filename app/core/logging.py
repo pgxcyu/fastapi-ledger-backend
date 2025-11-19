@@ -125,11 +125,13 @@ def setup_logging():
         extra = record["extra"]
         if "request_id" not in extra:
             extra["request_id"] = get_request_id() or "-"
-        uid, sid = get_user_context()
+        uid, sid, role_id = get_user_context()
         if "user_id" not in extra or extra["user_id"] is None:
             extra["user_id"] = uid or "-"
         if "sid" not in extra or extra["sid"] is None:
             extra["sid"] = sid or "-"
+        if "role_id" not in extra or extra["role_id"] is None:
+            extra["role_id"] = role_id or "-"
 
     logger.configure(patcher=inject_context)
 

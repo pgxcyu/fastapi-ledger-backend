@@ -21,3 +21,8 @@ class MenuType(str, Enum):
     GRID = "grid"
     LIST = "list"
     CHART = "chart"
+    DIR = "dir"
+
+class ResourceType(str, Enum):
+    MENU = "menu"
+    BUTTON = "button"

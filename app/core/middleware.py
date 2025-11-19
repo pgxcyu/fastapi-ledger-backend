@@ -53,9 +53,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
                     user_id = payload.get("sub")
                     sid = payload.get("sid")
+                    role_id = payload.get("role_id")
 
                     if user_id: request.state.user_id = user_id
                     if sid: request.state.sid = sid
+                    if role_id: request.state.role_id = role_id
                     auth_logger.debug(f"Authenticated user: {user_id}")
                 except JWTError as e:
                     # 令牌无效，忽略错误
@@ -84,7 +86,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
             user_id = getattr(request.state, "user_id", "")
             sid = getattr(request.state, "sid", "")
-            set_user_context(user_id, sid)
+            role_id = getattr(request.state, "role_id", "")
+            
+            set_user_context(user_id, sid, role_id)
 
             ctx = {
                 "request_id": rid,
@@ -93,6 +97,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 "status_code": response.status_code,
                 "elapsed_ms": elapsed,
                 "user_id": user_id,
+                "role_id": role_id,
                 "sid": sid,
                 "ip": request.client.host if request.client else None,
                 "user_agent": request.headers.get("User-Agent", ""),

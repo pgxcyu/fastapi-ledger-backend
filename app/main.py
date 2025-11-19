@@ -23,6 +23,7 @@ from app.core.middleware import (
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
 )
+from app.core.audit_middleware import AuditMiddleware
 from app.db.db_session import init_db
 from app.db.redis_session import close_redis, init_redis
 from app.routers import auth, basic, system, transactions, videoserver
@@ -43,6 +44,7 @@ app.add_middleware(
 # app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AuthenticationMiddleware)
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(AuditMiddleware)
 
 app.add_exception_handler(BizException, biz_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)

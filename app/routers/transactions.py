@@ -4,12 +4,13 @@ from math import e
 import os
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from sqlalchemy.orm import Session
 
+from app.core.audit import audit_log
 from app.core.config import settings
-from app.core.deps import get_current_user, get_db
+from app.core.deps import get_current_user, get_db, require_code
 from app.core.exceptions import BizException
 from app.core.idempotency import ensure_idempotency, idem_done, idem_unlock
 from app.core.signing import verify_signature
@@ -24,12 +25,13 @@ from app.schemas.transactions import (
     TransactionResponse,
 )
 from app.tasks.celery_tasks import export_transactions_by_user_task
+from app.core.audit import audit_transaction
 
 
 router = APIRouter()
 
 
-@router.post("/addRecord", response_model=R, description="添加交易记录")
+@router.post("/addRecord", response_model=R, description="添加交易记录", dependencies=[Depends(require_code('add_record'))])
 async def create_transaction(
     request: Request,
     transaction: TransactionCreate, 
@@ -114,7 +116,7 @@ async def create_transaction(
         raise BizException(message=f"保存失败: {str(e)}")
     
 
-@router.get("/getRecords", response_model=R[PageResult[TransactionResponse]], description="获取交易记录列表", dependencies=[Depends(verify_signature), Depends(RateLimiter(times=5, seconds=60))])
+@router.get("/getRecords", response_model=R[PageResult[TransactionResponse]], description="获取交易记录列表", dependencies=[Depends(verify_signature), Depends(RateLimiter(times=10, seconds=60))])
 def get_transactions(
     form: TransactionListQuery = Depends(), 
     current_user: User = Depends(get_current_user), 
@@ -208,13 +210,19 @@ async def get_transaction_detail(
     return R.ok(data=transaction_response)
 
 
-@router.post("/deleteRecord", response_model=R, description="删除交易记录")
+@router.post("/deleteRecord", response_model=R, description="删除交易记录", dependencies=[Depends(require_code("bill:delete"))])
+@audit_transaction(operation_description="删除交易记录", operation_type="delete")
 async def delete_transaction(
-    transaction_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     redis_client = Depends(get_redis_client)
 ):
+    data = await request.json()
+    transaction_id = data.get("transaction_id")
+    if not transaction_id:
+        raise BizException(message="交易记录ID不能为空")
+
     cache_key = f"transaction:{transaction_id}"
     # 从Redis缓存中删除交易记录
     await redis_client.delete(cache_key)

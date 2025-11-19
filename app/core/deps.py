@@ -1,5 +1,6 @@
-from fastapi import Depends, Request
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.core.crypto_sm2 import make_sm2
@@ -8,14 +9,22 @@ from app.core.request_ctx import set_user_context
 from app.core.security import decode_token
 from app.core.session_store import get_active_sid, get_session_kv
 from app.db.db_session import get_db
-from app.db.models import User
+from app.db.models import (
+    Resource,
+    ResourceType,
+    RoleAreaGrant,
+    User,
+    UserRoleScope,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-async def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     payload = decode_token(token)
     sub = payload.get("sub")
     sid = payload.get("sid")
+    role_id = payload.get("role_id")
+
     if sub is None or sid is None:
         raise BizException(code=401, message="无效的token")
 
@@ -28,6 +37,8 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
         raise BizException(code=500, message="用户不存在")
     
     setattr(user, "sid", sid)
+    setattr(user, "role_id", role_id)
+    
     return user
 
 
@@ -47,3 +58,29 @@ async def get_sm2_client(current_user: User = Depends(get_current_user)):
     if not cli_pubkey or not svr_privkey:
         raise BizException(message="获取SM2密钥对失败")
     return make_sm2(svr_privkey, cli_pubkey, strict=False)
+
+
+# 鉴权
+def require_code(code: str):
+    async def _checker(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        allowed = db.query(Resource).join(
+            RoleAreaGrant,
+            and_(
+                Resource.rid == RoleAreaGrant.rid,
+                RoleAreaGrant.role_id == current_user.role_id,
+                RoleAreaGrant.is_grant == 1,
+            ),
+        ).filter(
+            Resource.rcode == code,
+            Resource.status == 1,
+        ).first()
+        
+        if not allowed:
+            raise BizException(code=403, message="没有权限")
+
+        return allowed
+    
+    return _checker

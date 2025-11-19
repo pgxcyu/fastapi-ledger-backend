@@ -31,6 +31,42 @@ def _stable(obj: Any) -> Any:
 def json_canon_dump(obj: Any) -> str:
     return json.dumps(_stable(obj), ensure_ascii=False, separators=(',',':'))
 
+async def check_replay_time_window(redis, rkey: str, time_window: int, method: str) -> None:
+    """
+    检查重放请求的时间窗口
+    
+    Args:
+        redis: Redis客户端
+        rkey: 重放检测键
+        time_window: 允许的时间窗口（秒）
+        method: HTTP方法（用于调试信息）
+    
+    Raises:
+        BizException: 如果超出时间窗口
+    """
+    debug_print(f"调试信息 - {method}请求使用时间窗口: {time_window}秒")
+    
+    # 获取第一次请求的时间戳
+    first_request_time = await redis.get(rkey)
+    if first_request_time:
+        try:
+            first_time = int(first_request_time)
+            current_time = int(time.time())
+            time_diff = current_time - first_time
+            
+            debug_print(f"调试信息 - 首次请求时间: {first_time}, 当前时间: {current_time}, 时间差: {time_diff}")
+            
+            # 如果在时间窗口内重复，可能是网络重试，允许通过
+            if time_diff <= time_window:
+                debug_print(f"调试信息 - 允许{method}请求重试（{time_window}秒内重复）")
+            else:
+                raise BizException(code=40101, message="重放检测")
+        except (ValueError, TypeError):
+            # 如果无法解析时间戳，按重放处理
+            raise BizException(code=40101, message="重放检测")
+    else:
+        raise BizException(code=40101, message="重放检测")
+
 def canonicalize_query(req: Request) -> str:
     # 与前端canonicalizeQuery保持一致的实现
     query_string = req.url.query
@@ -82,6 +118,10 @@ async def verify_signature(
     debug_print(f"X-Nonce: {x_nonce}")
     debug_print(f"X-Signature: {x_signature}")
     
+    # 获取请求方法（统一获取，避免重复）
+    method = request.method.upper()
+    debug_print(f"调试信息 - 请求方法: {method}")
+    
     # 1) 时间窗
     try:
         ts = int(x_timestamp)
@@ -97,15 +137,51 @@ async def verify_signature(
     if time_diff > SIGN_WINDOW:
         raise BizException(code=40101, message="时间戳过期")
 
-    # 2) 防重放：kid+nonce 5 分钟唯一
+    # 2) 防重放：kid+nonce 5 分钟唯一，但允许 token 刷新重试
     redis = getattr(request.app.state, "redis", None)
     debug_print(f"调试信息 - Redis可用: {redis is not None}")
     if redis:
         rkey = f"sig:{x_key_id}:{x_nonce}"
         debug_print(f"调试信息 - 检查重放键: {rkey}")
-    if await redis.exists(rkey):
-      raise BizException(code=40101, message="重放检测")
-    await redis.setex(rkey, 300, "1")
+        
+        # 检查是否是重放请求
+        if await redis.exists(rkey):
+            debug_print(f"调试信息 - 发现重复nonce: {x_nonce}")
+            
+            # 对于 GET 请求，只使用时间窗口检查（不检查 Idempotency-Key）
+            if method == "GET":
+                # GET 请求使用更宽松的时间窗口（5秒）
+                await check_replay_time_window(redis, rkey, 5, method)
+            
+            # 对于 POST/PUT/DELETE 请求，使用双重验证机制
+            else:
+                # 方案1：如果有 Idempotency-Key，检查幂等键
+                if idem:
+                    idem_key = f"idem:{idem}"
+                    idem_exists = await redis.exists(idem_key)
+                    debug_print(f"调试信息 - 检查幂等键: {idem_key}, 存在: {idem_exists}")
+                    
+                    if idem_exists:
+                        debug_print("调试信息 - 允许 token 刷新重试（通过幂等键验证）")
+                    else:
+                        raise BizException(code=40101, message="重放检测")
+                else:
+                    # 方案2：检查是否是短时间内重复请求（token 刷新重试）
+                    await check_replay_time_window(redis, rkey, 30, method)
+        
+        # 设置重放检测键，存储当前时间戳
+        # GET 请求使用更短的过期时间（1分钟），其他请求使用5分钟
+        expiry = 60 if method == "GET" else 300
+        debug_print(f"调试信息 - 设置重放键过期时间: {expiry}秒")
+        await redis.setex(rkey, expiry, str(int(time.time())))
+        
+        # 只有 POST/PUT/DELETE 请求且提供了 Idempotency-Key 时才设置幂等键
+        # GET 请求不需要幂等键，因为它们天然是幂等的
+        if method != "GET" and idem:
+            idem_key = f"idem:{idem}"
+            idem_expiry = 30  # POST/PUT/DELETE 请求的幂等键过期时间
+            debug_print(f"调试信息 - 设置幂等键: {idem_key}, 过期时间: {idem_expiry}秒")
+            await redis.setex(idem_key, idem_expiry, "1")
 
     # 3) 取密钥
     secret = get_secret_by_kid(x_key_id)
@@ -114,7 +190,6 @@ async def verify_signature(
         raise BizException(code=40101, message="未知的密钥ID")
 
     # 4) 组 canonical
-    method = request.method.upper()
     # 规范化路径，确保与前端normalizePath行为一致
     path_only = request.url.path.rstrip('/')  # 移除尾部斜杠
     # 移除查询参数和fragment
