@@ -5,7 +5,7 @@ import socket
 import struct
 import hashlib
 import re
-from typing import Callable
+from typing import Callable, Awaitable, Optional
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
