@@ -52,24 +52,32 @@ jobs:
         run: |
           # Set PYTHONPATH to ensure Python can find the app module
           export PYTHONPATH=$PWD
-          # Verify that our enum fixes are working
-          python -c "
-from app.db.db_session import engine
-from app.domains.enums import ResourceType, MenuType
-from sqlalchemy import inspect
-inspector = inspect(engine)
-print('✓ Enums imported successfully')
-print(f'ResourceType values: {[e.value for e in ResourceType]}')
-print(f'MenuType values: {[e.value for e in MenuType]}')
-if 'resources' in inspector.get_table_names():
-    constraints = inspector.get_check_constraints('resources')
-    print(f'✓ Resources table has {len(constraints)} check constraints')
-    for constraint in constraints:
-        print(f'  - {constraint[\"name\"]}: {constraint[\"sqltext\"]}')
-else:
-    print('✗ Resources table not found')
-exit(0)
-"
+          # Create a simple verification script
+          cat > verify_schema.py << 'EOF'
+          from app.db.db_session import engine
+          from app.domains.enums import ResourceType, MenuType
+          from sqlalchemy import inspect
+
+          try:
+              inspector = inspect(engine)
+              print('✓ Enums imported successfully')
+              print('ResourceType values:', [e.value for e in ResourceType])
+              print('MenuType values:', [e.value for e in MenuType])
+              
+              if 'resources' in inspector.get_table_names():
+                  constraints = inspector.get_check_constraints('resources')
+                  print('✓ Resources table has', len(constraints), 'check constraints')
+                  for constraint in constraints:
+                      print('  -', constraint['name'] + ':', constraint['sqltext'])
+              else:
+                  print('✗ Resources table not found')
+                  exit(1)
+          except Exception as e:
+              print('✗ Verification failed:', str(e))
+              exit(1)
+          EOF
+          # Run the verification script
+          python verify_schema.py
       - name: Run tests
         run: |
           # Set PYTHONPATH to ensure Python can find the app module
