@@ -20,6 +20,7 @@ from app.core.audit_service import (
     audit_service,
 )
 from app.core.deps import get_db
+from app.core.exceptions import BizException
 from app.core.logging import logger
 from app.core.request_ctx import get_request_id
 from app.db.models import AuditLog
@@ -130,6 +131,14 @@ def audit_log(
             # 3. 执行业务函数
             try:
                 result = await func(*args, **kwargs)
+            except BizException as e:
+                audit_data["operation_result"] = AuditResult.FAILURE
+                audit_data["audit_level"] = AuditLevel.WARNING  # 或 INFO，看你喜好
+                audit_data["error_message"] = e.message
+                audit_service.save_audit_log(
+                    db, audit_data, use_separate_session=use_separate_session
+                )
+                raise
             except Exception as e:
                 # 失败场景审计
                 audit_data["operation_result"] = AuditResult.FAILURE

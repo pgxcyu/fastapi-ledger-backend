@@ -41,7 +41,7 @@ jobs:
           # Set PYTHONPATH to ensure Python can find the app module
           export PYTHONPATH=$PWD
           # Initialize database directly without creating a temporary file
-          python -c "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')"
+          python -c "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets, AuditLog, Role, Area, Resource, UserRoleScope, RoleAreaGrant; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')"
       - name: Run tests
         run: |
           # Set PYTHONPATH to ensure Python can find the app module
