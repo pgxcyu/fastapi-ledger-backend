@@ -28,6 +28,11 @@ jobs:
       SECRET_KEY: testsecret
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      # 添加测试环境的数据库配置
+      PG_USER: ledger_user
+      PG_PASSWORD: ledger_pass
+      PG_DB: ledger_test
+      PG_PORT: 5432
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,12 +41,35 @@ jobs:
         run: |
           python -m pip install -U pip
           pip install -r requirements.txt
-      - name: Create database tables directly
+      - name: Run database migrations
         run: |
           # Set PYTHONPATH to ensure Python can find the app module
           export PYTHONPATH=$PWD
-          # Initialize database directly without creating a temporary file
-          python -c "import sys; from app.core.config import settings; from app.db.models import ModelBase, User, Transaction, Fileassets, AuditLog, Role, Area, Resource, UserRoleScope, RoleAreaGrant; from sqlalchemy import create_engine; engine = create_engine(settings.DATABASE_URL); ModelBase.metadata.create_all(engine); print('Database tables created successfully')"
+          # Run Alembic migrations to set up database schema
+          python -m alembic upgrade head
+          echo "Database migrations completed successfully"
+      - name: Verify database schema
+        run: |
+          # Set PYTHONPATH to ensure Python can find the app module
+          export PYTHONPATH=$PWD
+          # Verify that our enum fixes are working
+          python -c "
+from app.db.db_session import engine
+from app.domains.enums import ResourceType, MenuType
+from sqlalchemy import inspect
+inspector = inspect(engine)
+print('✓ Enums imported successfully')
+print(f'ResourceType values: {[e.value for e in ResourceType]}')
+print(f'MenuType values: {[e.value for e in MenuType]}')
+if 'resources' in inspector.get_table_names():
+    constraints = inspector.get_check_constraints('resources')
+    print(f'✓ Resources table has {len(constraints)} check constraints')
+    for constraint in constraints:
+        print(f'  - {constraint[\"name\"]}: {constraint[\"sqltext\"]}')
+else:
+    print('✗ Resources table not found')
+exit(0)
+"
       - name: Run tests
         run: |
           # Set PYTHONPATH to ensure Python can find the app module

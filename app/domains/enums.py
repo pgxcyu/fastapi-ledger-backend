@@ -1,28 +1,28 @@
 from enum import Enum
 
 class UserStatus(str, Enum):
-    ACTIVE = "active"
-    DISABLED = "disabled"
-    FROZEN = "frozen"
-    PENDING = "pending"
-    DELETED = "deleted"
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+    FROZEN = "FROZEN"
+    PENDING = "PENDING"
+    DELETED = "DELETED"
 
 class TransactionType(str, Enum):
-    INCOME = "income"
-    EXPENSE = "expense"
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
 
 class FileStatus(str, Enum):
-    ACTIVE = "active"
-    QUARANTINE = "quarantine"
-    DELETED = "deleted"
-    MISSING = "missing"
+    ACTIVE = "ACTIVE"
+    QUARANTINE = "QUARANTINE"
+    DELETED = "DELETED"
+    MISSING = "MISSING"
 
 class MenuType(str, Enum):
-    GRID = "grid"
-    LIST = "list"
-    CHART = "chart"
-    DIR = "dir"
+    GRID = "GRID"
+    LIST = "LIST"
+    CHART = "CHART"
+    DIR = "DIR"
 
 class ResourceType(str, Enum):
-    MENU = "menu"
-    BUTTON = "button"
+    MENU = "MENU"
+    BUTTON = "BUTTON"

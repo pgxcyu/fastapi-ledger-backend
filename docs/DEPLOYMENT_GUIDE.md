@@ -113,6 +113,12 @@ celery -A app.core.celery_config inspect registered
 
 ## 数据库管理
 
+### 重要说明：数据库约束修复
+项目已修复Resource表的CHECK约束问题：
+- **问题**：原约束使用了错误的PostgreSQL语法（双引号而非单引号）
+- **修复**：更新了约束语法和枚举值大小写
+- **影响**：新部署会自动应用修复，现有部署需要运行迁移
+
 ### 数据库迁移
 ```bash
 # 执行所有待处理的数据库迁移
@@ -127,6 +133,20 @@ make migrate
 docker compose exec api bash -lc "alembic revision --autogenerate -m '您的迁移描述'"
 # 或使用Makefile
 make migrate-create
+```
+
+### 验证数据库约束
+```bash
+# 检查Resource表约束是否正确
+docker compose exec api bash -lc "python -c \"
+from app.db.db_session import engine
+from sqlalchemy import inspect
+inspector = inspect(engine)
+if 'resources' in inspector.get_table_names():
+    constraints = inspector.get_check_constraints('resources')
+    for constraint in constraints:
+        print(f'Constraint {constraint[\"name\"]}: {constraint[\"sqltext\"]}')
+\""
 ```
 
 ### 重建数据库视图

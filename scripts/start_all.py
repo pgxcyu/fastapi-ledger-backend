@@ -2,6 +2,22 @@ import threading
 import subprocess
 import time
 import sys
+import os
+
+def run_database_migrations():
+    """运行数据库迁移"""
+    print("Running database migrations...")
+    try:
+        result = subprocess.run("python -m alembic upgrade head", shell=True, capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✓ Database migrations completed successfully")
+        else:
+            print(f"✗ Database migration failed: {result.stderr}")
+            return False
+    except Exception as e:
+        print(f"✗ Error running migrations: {e}")
+        return False
+    return True
 
 def run_command(command, description):
     """运行命令并保持运行"""
@@ -11,6 +27,14 @@ def run_command(command, description):
 
 def main():
     try:
+        # 首先运行数据库迁移
+        if not run_database_migrations():
+            print("Failed to run database migrations. Exiting...")
+            sys.exit(1)
+        
+        # 等待一下确保数据库就绪
+        time.sleep(2)
+        
         # 定义命令
         commands = [
             ("uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload", "FastAPI server"),

@@ -72,14 +72,14 @@ class Area(ModelBase, TimestampMixin):
 class Resource(ModelBase, TimestampMixin):
     __tablename__ = "resources"
     __table_args__ = (
-        # 确保当资源类型为menu时，menu_type字段必须有值
+        # 确保当资源类型为MENU时，menu_type字段必须有值
         CheckConstraint(
-            'rtype != "menu" OR menu_type IS NOT NULL',
+            "rtype != 'MENU' OR menu_type IS NOT NULL",
             name='check_menu_menutype_required'
         ),
-        # 确保当资源类型为button时，必须有父级
+        # 确保当资源类型为BUTTON时，必须有父级
         CheckConstraint(
-            'rtype != "button" OR parent_id IS NOT NULL',
+            "rtype != 'BUTTON' OR parent_id IS NOT NULL",
             name='check_button_parent_required'
         ),
     )
