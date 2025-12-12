@@ -1,0 +1,89 @@
+# 生产环境Docker Compose配置
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PG_DB}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_PORT: ${PG_PORT}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "900 1", "--save", "300 10", "--save", "60 10000", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: always
+    networks:
+      - app-network
+
+  api:
+    build: .
+    depends_on:
+      - db
+      - redis
+    env_file: .env.prod
+    ports:
+      - "9000:9000"
+    volumes:
+      - logs:/code/logs
+      - static:/code/static
+    restart: always
+    networks:
+      - app-network
+
+  worker:
+    build: .
+    command: celery -A app.core.celery_config worker -l info
+    depends_on:
+      - api
+      - redis
+      - db
+    env_file: .env.prod
+    restart: always
+    networks:
+      - app-network
+
+  flower:
+    image: mher/flower
+    command: celery --broker=${CELERY_BROKER_URL} flower --port=5555
+    env_file: .env.prod
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    restart: always
+    networks:
+      - app-network
+
+  beat:
+    build: .
+    command: celery -A app.core.celery_config beat -l info
+    depends_on:
+      - api
+      - redis
+      - db
+    env_file: .env.prod
+    volumes:
+      - logs:/code/logs
+      - static:/code/static
+    restart: always
+    networks:
+      - app-network
+
+volumes:
+  pgdata:
+  redis_data:
+  logs:
+  static:
+
+networks:
+  app-network:
+    driver: bridge
