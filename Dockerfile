@@ -5,8 +5,11 @@ LABEL authors="pgxcyu"
 WORKDIR /code
 
 # 安装OpenCV所需的系统依赖
-RUN apt-get update && apt-get install -y \
-    libgl1 \
+RUN if [ -f /etc/apt/sources.list ]; then \
+        sed -i 's@http://deb.debian.org@https://mirrors.cloud.tencent.com@g' /etc/apt/sources.list; \
+    fi \
+    && apt-get update \
+    && apt-get install -y libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装Python依赖

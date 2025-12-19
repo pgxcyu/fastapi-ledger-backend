@@ -87,8 +87,17 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    await FastAPILimiter.close()
-    await close_redis()
+    # limiter 未 init 时 close 可能会抛异常，必须吞掉
+    try:
+        await FastAPILimiter.close()
+    except Exception as e:
+        print(f"Warning: FastAPILimiter.close failed: {e}")
+
+    # redis 关闭也做保护
+    try:
+        await close_redis()
+    except Exception as e:
+        print(f"Warning: close_redis failed: {e}")
 
 
 # @app.get("/docs", include_in_schema=False)

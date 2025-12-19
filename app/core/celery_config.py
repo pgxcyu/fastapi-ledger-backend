@@ -11,10 +11,10 @@ broker_url = os.getenv("CELERY_BROKER_URL", settings.CELERY_BROKER_URL)
 result_backend = os.getenv("CELERY_RESULT_BACKEND", settings.CELERY_RESULT_BACKEND)
 
 # 如果环境变量未设置且默认URL包含"redis://redis"，则替换为localhost
-if "redis://redis" in broker_url:
-    broker_url = broker_url.replace("redis://redis", "redis://localhost")
-if "redis://redis" in result_backend:
-    result_backend = result_backend.replace("redis://redis", "redis://localhost")
+# if "redis://redis" in broker_url:
+#    broker_url = broker_url.replace("redis://redis", "redis://localhost")
+# if "redis://redis" in result_backend:
+#    result_backend = result_backend.replace("redis://redis", "redis://localhost")
 
 # 添加日志输出，查看实际使用的URL
 print(f"Celery使用的Broker URL: {broker_url}")
