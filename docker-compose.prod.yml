@@ -34,8 +34,8 @@ services:
     ports:
       - "9000:9000"
     volumes:
-      - logs:/code/logs
-      - static:/code/static
+      - ./logs:/code/logs
+      - ./static:/code/static
     restart: always
     networks:
       - app-network
@@ -73,8 +73,8 @@ services:
       - db
     env_file: .env.prod
     volumes:
-      - logs:/code/logs
-      - static:/code/static
+      - ./logs:/code/logs
+      - ./static:/code/static
     restart: always
     networks:
       - app-network

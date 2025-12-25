@@ -81,13 +81,13 @@ run:
 
 # 启动基础服务
 up-b:
-	docker compose -f docker-compose-basic.yml up --build -d
+	docker compose -f docker-compose.basic.yml up --build -d
 
 start-b:
-	docker compose -f docker-compose-basic.yml up -d
+	docker compose -f docker-compose.basic.yml up -d
 
 down-b:
-	docker compose -f docker-compose-basic.yml down
+	docker compose -f docker-compose.basic.yml down
 
 install-r:
 	pip install -r requirements.txt

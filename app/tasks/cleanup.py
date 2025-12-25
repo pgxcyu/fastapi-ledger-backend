@@ -20,18 +20,25 @@ def _list_all_files(root: Path) -> Set[Path]:
 def _normalize_path(p: str) -> str:
     # 数据库存的是相对路径、URL、或含 /static 前缀的，都规范到相对上传目录
     # 例如 "/static/upload_files/2025/10/a.jpg" → "2025/10/a.jpg"
-    p = p.strip()
-    p = p.split("?")[0]
-    p = p.replace("\\", "/")
-    cuts = [
+    from app.core.config import settings
+    p = p.strip().split("?")[0].replace("\\", "/")
+    
+    # 优先匹配绝对路径
+    abs_prefix = str(Path(settings.UPLOAD_DIR).resolve()).rstrip("/") + "/"
+    if p.startswith(abs_prefix):
+        return p[len(abs_prefix):]
+        
+    # 再匹配相对路径
+    rel_prefixes = [
         "/static/upload_files/",
         "static/upload_files/",
-        settings.UPLOAD_DIR.strip("/")+ "/",
+        "/upload_files/",
+        "upload_files/",
     ]
-    for c in cuts:
-        if c in p:
-            p = p.split(c, 1)[1]
-            break
+    for prefix in rel_prefixes:
+        if p.startswith(prefix):
+            return p[len(prefix):]
+            
     return p.lstrip("/")
 
 def _older_than(path: Path, days: int) -> bool:
@@ -132,8 +139,30 @@ def _is_link_valid(db: Session, file_row: M.Fileassets) -> bool:
        - business_id 为空/空串 → 无效
        - 若你后续有多表验证，在这里扩展（例如按 row.type 决定去哪个表 exists()）
     """
-    bid = (file_row.business_id or "").strip()
-    return bool(bid)
+    """
+    判断文件是否有效关联业务
+    - business_id 非空 → 有效
+    - 特殊路径（如 avatars, logos）→ 永远有效
+    """
+    if not file_row:
+        return False
+        
+    bid = (getattr(file_row, "business_id", "") or "").strip()
+    if bid:
+        return True
+        
+    # 允许特定路径的文件无 business_id（如用户头像）
+    protected_paths = [
+        "avatars/",
+        "logos/",
+        "system/",
+    ]
+    filepath = getattr(file_row, "filepath", "")
+    for prefix in protected_paths:
+        if filepath.startswith(prefix):
+            return True
+            
+    return False
 
 
 def _to_utc(dt: datetime) -> datetime:

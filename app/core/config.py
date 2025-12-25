@@ -27,14 +27,14 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/2")
 
     PG_USER: str = os.getenv("PG_USER", "postgres")
-    PG_PASSWORD: str = os.getenv("PG_PASSWORD", "152183312")
+    PG_PASSWORD: str = os.getenv("PG_PASSWORD", "Pgxcyu--152183312")
     PG_DB: str = os.getenv("PG_DB", "fastapi-ledger")
     PG_PORT: int = int(os.getenv("PG_PORT", "5432"))
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"postgresql+psycopg://{PG_USER}:{PG_PASSWORD}@localhost:{PG_PORT}/{PG_DB}")
 
     # ====== Storage ======
-    UPLOAD_DIR: str = os.path.join(BASE_DIR, "static/upload_files")
-    QUARANTINE_DIR: str = os.path.join(BASE_DIR, "static/quarantine")
+    UPLOAD_DIR: str = os.path.join(BASE_DIR, os.getenv("UPLOAD_DIR", "static/upload_files"))
+    QUARANTINE_DIR: str = os.path.join(BASE_DIR, os.getenv("QUARANTINE_DIR", "static/quarantine"))
 
     # ====== Retention ======
     UNTRACKED_FS_RETENTION_DAYS: int = int(os.getenv("UNTRACKED_FS_RETENTION_DAYS", "2"))     # 磁盘未入库保留期
